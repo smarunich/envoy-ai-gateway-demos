@@ -1,0 +1,56 @@
+name: Setup Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: envoy-ai-gateway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  setup-validation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.x
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+      
+    - name: Run complete setup (following README)
+      run: |
+        echo "🚀 Running complete setup as documented in README..."
+        task setup-all
+      
+    - name: Verify installation (following README)
+      run: |
+        echo "✅ Running verification as documented in README..."
+        task verify-installation
+        
+    - name: Basic cluster check
+      run: |
+        echo "=== Basic Cluster Status ==="
+        kubectl get nodes --kubeconfig=kubeconfig.yaml
+        kubectl get pods --all-namespaces --kubeconfig=kubeconfig.yaml
+        
+    - name: Show logs on failure
+      if: failure()
+      run: |
+        echo "=== Failure Logs ==="
+        kubectl get pods --all-namespaces --kubeconfig=kubeconfig.yaml || true
+        kubectl logs -n envoy-gateway-system --tail=50 --kubeconfig=kubeconfig.yaml || true
+        
+    - name: Cleanup
+      if: always()
+      run: |
+        echo "=== Cleanup ==="
+        task cleanup || true
