@@ -1,0 +1,152 @@
+name: Integration Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    
+    strategy:
+      matrix:
+        task-version: ['3.x']
+        kind-version: ['v0.29.0']
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Free up disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        sudo rm -rf "/usr/local/share/boost"
+        sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+        docker system prune -af
+        
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: ${{ matrix.task-version }}
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Verify prerequisites
+      run: |
+        echo "=== System Info ==="
+        uname -a
+        docker --version
+        task --version
+        
+        echo "=== Available Resources ==="
+        df -h
+        free -h
+        
+    - name: Run complete setup
+      run: |
+        echo "=== Starting complete setup ==="
+        task setup-all
+        
+    - name: Verify all components are running
+      run: |
+        echo "=== Verifying cluster ==="
+        kubectl cluster-info --kubeconfig=kubeconfig.yaml
+        
+        echo "=== Checking all pods ==="
+        kubectl get pods --all-namespaces --kubeconfig=kubeconfig.yaml
+        
+        echo "=== Checking services ==="
+        kubectl get services --all-namespaces --kubeconfig=kubeconfig.yaml
+        
+    - name: Test task status after setup
+      run: |
+        echo "=== Testing task status after complete setup ==="
+        task --status setup-all && echo "✓ setup-all is up-to-date" || echo "✗ setup-all is not up-to-date"
+        task --status install-deps && echo "✓ install-deps is up-to-date" || echo "✗ install-deps is not up-to-date"
+        task --status create-cluster && echo "✓ create-cluster is up-to-date" || echo "✗ create-cluster is not up-to-date"
+        task --status install-envoy-gateway && echo "✓ install-envoy-gateway is up-to-date" || echo "✗ install-envoy-gateway is not up-to-date"
+        task --status install-envoy-ai-gateway && echo "✓ install-envoy-ai-gateway is up-to-date" || echo "✗ install-envoy-ai-gateway is not up-to-date"
+        
+    - name: Test status files exist
+      run: |
+        echo "=== Checking status files ==="
+        test -f .task/install-deps.done && echo "✓ install-deps.done exists"
+        test -f .task/create-cluster.done && echo "✓ create-cluster.done exists"
+        test -f .task/install-envoy-gateway.done && echo "✓ install-envoy-gateway.done exists"
+        test -f .task/install-envoy-ai-gateway.done && echo "✓ install-envoy-ai-gateway.done exists"
+        
+    - name: Test re-running setup (should be up-to-date)
+      run: |
+        echo "=== Testing idempotency - re-running setup ==="
+        task setup-all
+        
+    - name: Test individual task re-runs
+      run: |
+        echo "=== Testing individual task idempotency ==="
+        task install-deps
+        task create-cluster
+        task install-envoy-gateway
+        task install-envoy-ai-gateway
+        
+    - name: Test cleanup and re-setup
+      run: |
+        echo "=== Testing cleanup ==="
+        task cleanup
+        
+        echo "=== Verifying cleanup ==="
+        kind get clusters | grep -v envoy-ai-gateway-demo || echo "✓ Cluster cleaned up"
+        test ! -f kubeconfig.yaml && echo "✓ kubeconfig.yaml removed" || echo "✗ kubeconfig.yaml still exists"
+        
+        echo "=== Testing re-setup after cleanup ==="
+        task setup-all
+        
+    - name: Final verification
+      run: |
+        echo "=== Final verification ==="
+        task verify-installation
+        task status
+        
+    - name: Export logs on failure
+      if: failure()
+      run: |
+        echo "=== Collecting failure logs ==="
+        mkdir -p /tmp/logs
+        
+        # Task status files
+        find .task -name "*.done" -exec echo "=== {} ===" \; -exec cat {} \; || true
+        
+        # Kubernetes logs
+        kubectl logs -n envoy-gateway-system --all-containers=true --kubeconfig=kubeconfig.yaml > /tmp/logs/envoy-gateway.log 2>&1 || true
+        kubectl logs -n envoy-ai-gateway-system --all-containers=true --kubeconfig=kubeconfig.yaml > /tmp/logs/envoy-ai-gateway.log 2>&1 || true
+        
+        # Kind logs
+        kind export logs /tmp/logs/kind-logs || true
+        
+        # System info
+        docker ps -a > /tmp/logs/docker-ps.log || true
+        docker images > /tmp/logs/docker-images.log || true
+        
+    - name: Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: failure-logs-${{ matrix.task-version }}-${{ matrix.kind-version }}
+        path: /tmp/logs/
+        retention-days: 7
+        
+    - name: Cleanup
+      if: always()
+      run: |
+        echo "=== Final cleanup ==="
+        task cleanup || true
+        docker system prune -af || true

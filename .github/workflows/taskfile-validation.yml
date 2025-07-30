@@ -1,0 +1,70 @@
+name: Taskfile Validation
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate-taskfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.x
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Validate Taskfile syntax
+      run: |
+        echo "=== Validating Taskfile.yml syntax ==="
+        task --list --sort=none
+        
+    - name: Check task dependencies
+      run: |
+        echo "=== Checking task dependencies ==="
+        task --dry setup-all
+        
+    - name: Verify task status functionality
+      run: |
+        echo "=== Testing status functionality ==="
+        task --status install-deps || echo "install-deps not up-to-date (expected)"
+        task --status create-cluster || echo "create-cluster not up-to-date (expected)"
+        task --status setup-all || echo "setup-all not up-to-date (expected)"
+        
+    - name: Test individual task status checks
+      run: |
+        echo "=== Testing individual task status ==="
+        for task_name in install-deps create-cluster install-envoy-gateway install-envoy-ai-gateway; do
+          echo "Checking $task_name..."
+          task --status "$task_name" || echo "$task_name not up-to-date (expected)"
+        done
+        
+    - name: Validate shell scripts exist
+      run: |
+        echo "=== Checking required shell scripts ==="
+        test -f scripts/install-deps.sh && echo "✓ install-deps.sh exists"
+        test -f scripts/create-cluster.sh && echo "✓ create-cluster.sh exists"
+        test -f scripts/install-envoy-gateway.sh && echo "✓ install-envoy-gateway.sh exists"
+        test -f scripts/install-envoy-ai-gateway.sh && echo "✓ install-envoy-ai-gateway.sh exists"
+        test -f scripts/verify-installation.sh && echo "✓ verify-installation.sh exists"
+        test -f scripts/cleanup.sh && echo "✓ cleanup.sh exists"
+        
+    - name: Check shell script permissions
+      run: |
+        echo "=== Checking shell script permissions ==="
+        find scripts/ -name "*.sh" -exec test -x {} \; -print || echo "Some scripts may not be executable"
+        
+    - name: Validate README
+      run: |
+        echo "=== Checking README.md ==="
+        test -f README.md && echo "✓ README.md exists"
+        grep -q "task setup-all" README.md && echo "✓ README mentions setup-all task"
+        grep -q "kind" README.md && echo "✓ README mentions kind"

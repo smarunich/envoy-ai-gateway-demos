@@ -1,0 +1,46 @@
+name: Setup Status
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    # Run every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  setup-status:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.x
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Quick setup validation
+      run: |
+        echo "=== Quick Setup Validation ==="
+        
+        # Validate Taskfile
+        task --list --sort=none
+        
+        # Check dependencies
+        task --dry setup-all
+        
+        # Verify scripts exist
+        for script in install-deps create-cluster install-envoy-gateway install-envoy-ai-gateway verify-installation cleanup; do
+          if [ -f "scripts/${script}.sh" ]; then
+            echo "✓ scripts/${script}.sh exists"
+          else
+            echo "✗ scripts/${script}.sh missing"
+            exit 1
+          fi
+        done
+        
+        echo "✅ All validation checks passed!"
