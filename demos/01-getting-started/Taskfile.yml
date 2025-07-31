@@ -5,6 +5,7 @@ vars:
   GATEWAY_NAME: envoy-ai-gateway
   BACKEND_NAME: llm-d-inference-sim
   MODEL: qwen3
+  PORT_FORWARD: {{.PORT_FORWARD}}
 
 tasks:
   default:
@@ -21,7 +22,7 @@ tasks:
       - echo "Setup complete! Run 'task test' to test the gateway"
 
   deploy:
-    desc: "Deploy the Envoy AI Gateway with LLM Infinity Simulator"
+    desc: "Deploy the Envoy AI Gateway with LLM-D Inference Simulator"
     cmds:
       - kubectl apply -f envoy-ai-gateway-infra.yaml
       - kubectl apply -f envoy-ai-gateway-aigatewayroute.yaml
@@ -31,7 +32,7 @@ tasks:
   wait-ready:
     desc: "Wait for all components to be ready"
     cmds:
-      - echo "Waiting for LLM Infinity Simulator to be ready..."
+      - echo "Waiting for LLM-D Inference Simulator to be ready..."
       - kubectl wait --for=condition=ready pod -l app={{.BACKEND_NAME}} -n {{.NAMESPACE}} --timeout=300s
       - echo "Waiting for Gateway to be ready..."
       - kubectl wait --for=condition=ready -l gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -n envoy-gateway-system --timeout=300s || echo "Gateway may take longer to be ready, continuing..."
@@ -43,11 +44,11 @@ tasks:
       - |
         ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
         echo "Port forwarding to service: $ENVOY_SERVICE"
-        kubectl port-forward -n envoy-gateway-system svc/$ENVOY_SERVICE 8080:80
+        kubectl port-forward -n envoy-gateway-system svc/$ENVOY_SERVICE {{.PORT_FORWARD}}:80
 
   test:
     desc: "Test the AI Gateway endpoints"
-    deps: [test-chat, test-embeddings, test-models]
+    deps: [test-chat, test-stream, test-models]
 
   test-chat:
     desc: "Test chat completions endpoint"
@@ -57,28 +58,16 @@ tasks:
         curl -s -H "Content-Type: application/json" \
           -d '{
             "model": "{{.MODEL}}",
-            "messages": [{"role": "user", "content": "Hello, AI Gateway with LLM Infinity!"}]
+            "messages": [{"role": "user", "content": "Hello, AI Gateway with LLM-D Inference!"}]
           }' \
-          http://localhost:8080/v1/chat/completions | jq . || echo "Make sure port-forward is running: task port-forward"
-
-  test-embeddings:
-    desc: "Test embeddings endpoint"
-    cmds:
-      - |
-        echo "Testing embeddings..."
-        curl -s -H "Content-Type: application/json" \
-          -d '{
-            "model": "{{.MODEL}}",
-            "input": "Testing embeddings with LLM Infinity Simulator"
-          }' \
-          http://localhost:8080/v1/embeddings | jq . || echo "Make sure port-forward is running: task port-forward"
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq . || echo "Make sure port-forward is running: task port-forward"
 
   test-models:
     desc: "Test models endpoint"
     cmds:
       - |
         echo "Testing models endpoint..."
-        curl -s http://localhost:8080/v1/models | jq . || echo "Make sure port-forward is running: task port-forward"
+        curl -s http://localhost:{{.PORT_FORWARD}}/v1/models | jq . || echo "Make sure port-forward is running: task port-forward"
 
   test-stream:
     desc: "Test streaming chat completions"
@@ -91,7 +80,7 @@ tasks:
             "messages": [{"role": "user", "content": "Stream this response please"}],
             "stream": true
           }' \
-          http://localhost:8080/v1/chat/completions || echo "Make sure port-forward is running: task port-forward"
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions || echo "Make sure port-forward is running: task port-forward"
 
   logs:
     desc: "Show logs from all components"
@@ -100,7 +89,7 @@ tasks:
       - task: logs-gateway
 
   logs-simulator:
-    desc: "Show logs from LLM Infinity Simulator"
+    desc: "Show logs from LLM-D Inference Simulator"
     cmds:
       - kubectl logs -l app={{.BACKEND_NAME}} -n {{.NAMESPACE}} --tail=50 -f
 
@@ -134,7 +123,7 @@ tasks:
       - echo "Cleanup complete"
 
   restart:
-    desc: "Restart the LLM Infinity Simulator"
+    desc: "Restart the LLM-D Inference Simulator"
     cmds:
       - kubectl rollout restart deployment/{{.BACKEND_NAME}} -n {{.NAMESPACE}}
       - task: wait-ready

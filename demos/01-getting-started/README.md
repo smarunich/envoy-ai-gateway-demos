@@ -1,14 +1,14 @@
-# Envoy AI Gateway with LLM D Inference Simulator Demo
+# Getting Started with Envoy AI Gateway
 
-This demo showcases the Envoy AI Gateway using the LLM D Inference Simulator as a mock backend. The LLM D Inference Simulator provides a lightweight way to test AI workloads without running actual LLM inference.
+This demo showcases the Envoy AI Gateway using the LLM-D Inference Simulator as a mock backend. The LLM-D Inference Simulator provides a lightweight way to test AI workloads without running actual LLM inference, making it perfect for development and testing scenarios.
 
 ## Overview
 
 This demo sets up:
-- Envoy AI Gateway with custom configuration
-- LLM D Inference Simulator as the AI backend
-- Kubernetes services and routes for AI API endpoints
-- Test scripts for validating the setup
+- **Envoy AI Gateway** with custom configuration for AI workloads
+- **LLM-D Inference Simulator** as the AI backend (using `qwen3` model in echo mode)
+- **Kubernetes services and routes** for AI API endpoints
+- **Automated tasks** for easy deployment and testing
 
 ## Prerequisites
 
@@ -21,7 +21,7 @@ This demo sets up:
 
 1. Navigate to the demo directory:
 ```bash
-cd demos/envoy-ai-gateway-llm-infinity-demo
+cd demos/01-getting-started
 ```
 
 2. Run the complete setup:
@@ -64,8 +64,8 @@ Run `task` to see all available tasks:
 
 ```
 ┌─────────────┐     ┌─────────────────┐     ┌──────────────────────┐
-│   Client    │────▶│  Envoy AI       │────▶│  LLM Infinity       │
-│             │     │  Gateway        │     │  Simulator          │
+│   Client    │────▶│  Envoy AI       │────▶│  LLM-D Inference    │
+│             │     │  Gateway        │     │  Simulator (qwen3)  │
 └─────────────┘     └─────────────────┘     └──────────────────────┘
                            │
                            ▼
@@ -78,28 +78,33 @@ Run `task` to see all available tasks:
 ## Configuration Details
 
 ### Gateway Configuration
-- **Gateway Class**: `envoy-ai-gateway-llm-infinity`
+- **Gateway Name**: `envoy-ai-gateway`
 - **Listener**: HTTP on port 80
-- **Buffer Limit**: Configured for AI workloads (50MiB)
+- **Namespace**: `default`
+- **Buffer Limit**: Configured for AI workloads
 
-### LLM Infinity Simulator
+### LLM-D Inference Simulator
 - **Mode**: Echo mode (returns the input text)
-- **Model**: `llm-infinity-test-model`
+- **Model**: `qwen3`
+- **Port**: 8000
 - **Endpoints**: `/v1/chat/completions`, `/v1/embeddings`, `/v1/models`
-- **Performance**: Configured with minimal latency for testing
+- **Performance**: 
+  - Time to first token: 10ms
+  - Inter-token latency: 20ms
+- **Resources**: 128Mi memory, 100m CPU
 
 ### Routing
 Routes are matched based on the `x-ai-eg-model` header:
-- Value: `llm-infinity-simulator`
+- Value: `qwen3`
 
 ## Testing Examples
 
 ### Chat Completions
 ```bash
 curl -H "Content-Type: application/json" \
-     -H "x-ai-eg-model: llm-infinity-simulator" \
+     -H "x-ai-eg-model: qwen3" \
      -d '{
-       "model": "llm-infinity-test-model",
+       "model": "qwen3",
        "messages": [{"role": "user", "content": "Hello, world!"}]
      }' \
      http://localhost:8080/v1/chat/completions
@@ -108,9 +113,9 @@ curl -H "Content-Type: application/json" \
 ### Embeddings
 ```bash
 curl -H "Content-Type: application/json" \
-     -H "x-ai-eg-model: llm-infinity-simulator" \
+     -H "x-ai-eg-model: qwen3" \
      -d '{
-       "model": "llm-infinity-test-model",
+       "model": "qwen3",
        "input": "Test embedding text"
      }' \
      http://localhost:8080/v1/embeddings
@@ -119,8 +124,9 @@ curl -H "Content-Type: application/json" \
 ### Streaming Response
 ```bash
 curl -H "Content-Type: application/json" \
+     -H "x-ai-eg-model: qwen3" \
      -d '{
-       "model": "llm-infinity-test-model",
+       "model": "qwen3",
        "messages": [{"role": "user", "content": "Stream this"}],
        "stream": true
      }' \
@@ -137,13 +143,13 @@ If you can't connect to the gateway:
 
 ### Simulator Not Responding
 1. Check simulator logs: `task logs-simulator`
-2. Verify pod is running: `kubectl get pods -l app=llm-infinity-simulator`
+2. Verify pod is running: `kubectl get pods -l app=llm-d-inference-sim`
 3. Restart if needed: `task restart`
 
 ### Gateway Not Ready
 The gateway may take a few moments to become ready. You can:
 1. Check status: `kubectl get gateway -n default`
-2. View events: `kubectl describe gateway ai-gateway-llm-infinity`
+2. View events: `kubectl describe gateway envoy-ai-gateway`
 
 ## Cleanup
 
@@ -163,5 +169,5 @@ After getting familiar with this basic setup, you can:
 ## References
 
 - [Envoy AI Gateway Documentation](https://aigateway.envoyproxy.io/)
-- [LLM Infinity Simulator](https://llm-d.ai/docs/architecture/Components/inf-simulator)
+- [LLM-D Inference Simulator](https://llm-d.ai/docs/architecture/Components/inf-simulator)
 - [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
