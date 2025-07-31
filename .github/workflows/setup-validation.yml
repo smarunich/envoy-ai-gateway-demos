@@ -2,7 +2,7 @@ name: Setup Validation
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
@@ -72,15 +72,15 @@ jobs:
     - name: Basic cluster check
       run: |
         echo "=== Basic Cluster Status ==="
-        kubectl get nodes --kubeconfig=kubeconfig.yaml
-        kubectl get pods --all-namespaces --kubeconfig=kubeconfig.yaml
+        kubectl get nodes
+        kubectl get pods --all-namespaces
         
     - name: Show logs on failure
       if: failure()
       run: |
         echo "=== Failure Logs ==="
-        kubectl get pods --all-namespaces --kubeconfig=kubeconfig.yaml || true
-        kubectl logs -n envoy-gateway-system --tail=50 --kubeconfig=kubeconfig.yaml || true
+        kubectl get pods --all-namespaces || true
+        kubectl logs -n envoy-gateway-system --tail=50 || true
         
     - name: Cleanup
       if: always()

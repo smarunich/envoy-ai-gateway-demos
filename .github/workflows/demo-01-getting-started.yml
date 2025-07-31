@@ -2,7 +2,7 @@ name: Demo 01 - Getting Started
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]
     paths:
       - 'demos/01-getting-started/**'
       - '.github/workflows/demo-01-getting-started.yml'
@@ -92,12 +92,7 @@ jobs:
     - name: Start port forwarding in background
       run: |
         echo "🔌 Starting port forwarding..."
-        # Start port forwarding in background
-        nohup task port-forward > port-forward.log 2>&1 &
-        # Wait a bit for port forwarding to establish
-        sleep 10
-        # Check if port forwarding is working
-        netstat -tlnp | grep :8080 || echo "Port forwarding may not be ready yet"
+        task port-forward
 
     - name: Test chat completions endpoint
       run: |
@@ -126,12 +121,6 @@ jobs:
       run: |
         echo "📋 Showing component logs..."
         task logs || true
-
-    - name: Show port forwarding logs
-      if: always()
-      run: |
-        echo "📋 Port forwarding logs:"
-        cat port-forward.log || echo "No port-forward.log found"
 
     - name: Show failure diagnostics
       if: failure()
