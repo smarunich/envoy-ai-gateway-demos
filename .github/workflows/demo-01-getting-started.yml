@@ -44,20 +44,20 @@ jobs:
     - name: Deploy demo components
       run: |
         echo "🚀 Deploying demo components..."
-        # Set KUBECONFIG to use the kind cluster
-        export KUBECONFIG=../../kubeconfig.yaml
+        # Export kubeconfig from kind cluster
+        cd ../../
+        kind export kubeconfig --name envoy-ai-gateway-demo
+        cd demos/01-getting-started
         task deploy
         
     - name: Wait for demo components to be ready
       run: |
         echo "⏳ Waiting for demo components to be ready..."
-        export KUBECONFIG=../../kubeconfig.yaml
         task wait-ready
         
     - name: Verify deployment status
       run: |
         echo "📊 Checking deployment status..."
-        export KUBECONFIG=../../kubeconfig.yaml
         kubectl get pods --all-namespaces
         kubectl get gateways --all-namespaces
         kubectl get httproutes --all-namespaces
@@ -66,7 +66,6 @@ jobs:
     - name: Start port forwarding in background
       run: |
         echo "🔌 Starting port forwarding..."
-        export KUBECONFIG=../../kubeconfig.yaml
         # Start port forwarding in background
         nohup task port-forward > port-forward.log 2>&1 &
         # Wait a bit for port forwarding to establish
@@ -77,7 +76,6 @@ jobs:
     - name: Test chat completions endpoint
       run: |
         echo "🧪 Testing chat completions endpoint..."
-        export KUBECONFIG=../../kubeconfig.yaml
         # Wait a bit more to ensure port forwarding is stable
         sleep 5
         task test-chat
@@ -85,26 +83,22 @@ jobs:
     - name: Test models endpoint
       run: |
         echo "🧪 Testing models endpoint..."
-        export KUBECONFIG=../../kubeconfig.yaml
         task test-models
 
     - name: Test streaming endpoint
       run: |
         echo "🧪 Testing streaming endpoint..."
-        export KUBECONFIG=../../kubeconfig.yaml
         task test-stream
 
     - name: Run all tests
       run: |
         echo "🧪 Running all tests..."
-        export KUBECONFIG=../../kubeconfig.yaml
         task test
 
     - name: Show component logs
       if: always()
       run: |
         echo "📋 Showing component logs..."
-        export KUBECONFIG=../../kubeconfig.yaml
         task logs || true
 
     - name: Show port forwarding logs
@@ -117,7 +111,6 @@ jobs:
       if: failure()
       run: |
         echo "🔍 Failure diagnostics..."
-        export KUBECONFIG=../../kubeconfig.yaml
         echo "=== Pods Status ==="
         kubectl get pods --all-namespaces || true
         echo "=== Gateway Status ==="
@@ -135,7 +128,6 @@ jobs:
       if: always()
       run: |
         echo "🧹 Cleanup..."
-        export KUBECONFIG=../../kubeconfig.yaml
         task cleanup || true
         cd ../../
         task cleanup || true

@@ -2,10 +2,9 @@
 set -e
 
 # Create kind cluster
-# Usage: ./create-cluster.sh <CLUSTER_NAME> <KUBECONFIG_PATH>
+# Usage: ./create-cluster.sh <CLUSTER_NAME>
 
 CLUSTER_NAME=${1:-"envoy-ai-gateway-demo"}
-KUBECONFIG_PATH=${2:-"./kubeconfig.yaml"}
 
 echo "Creating kind cluster: ${CLUSTER_NAME}"
 
@@ -20,15 +19,14 @@ echo "Creating new kind cluster..."
 kind create cluster --name "${CLUSTER_NAME}" 
 
 # Export kubeconfig
-echo "Exporting kubeconfig to: ${KUBECONFIG_PATH}"
-kind export kubeconfig --name "${CLUSTER_NAME}" --kubeconfig "${KUBECONFIG_PATH}"
+echo "Exporting kubeconfig..."
+kind export kubeconfig --name "${CLUSTER_NAME}"
 
 # Verify cluster is ready
 echo "Verifying cluster status..."
-kubectl --kubeconfig="${KUBECONFIG_PATH}" get nodes
+kubectl get nodes
 
 echo "Waiting for all nodes to be ready..."
-kubectl --kubeconfig="${KUBECONFIG_PATH}" wait --for=condition=Ready nodes --all --timeout=300s
+kubectl wait --for=condition=Ready nodes --all --timeout=300s
 
 echo "Kind cluster '${CLUSTER_NAME}' created successfully!"
-echo "Kubeconfig saved to: ${KUBECONFIG_PATH}"

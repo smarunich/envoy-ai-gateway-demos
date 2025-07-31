@@ -2,10 +2,9 @@
 set -e
 
 # Clean up the kind cluster and resources
-# Usage: ./cleanup.sh <KUBECONFIG_PATH> [CLUSTER_NAME]
+# Usage: ./cleanup.sh [CLUSTER_NAME]
 
-KUBECONFIG_PATH=${1:-"./kubeconfig.yaml"}
-CLUSTER_NAME=${2:-"envoy-ai-gateway-demo"}
+CLUSTER_NAME=${1:-"envoy-ai-gateway-demo"}
 
 echo "Cleaning up kind cluster..."
 
@@ -17,11 +16,7 @@ else
     echo "Kind cluster '${CLUSTER_NAME}' not found"
 fi
 
-# Remove kubeconfig
-if [ -f "${KUBECONFIG_PATH}" ]; then
-    echo "Removing kubeconfig: ${KUBECONFIG_PATH}"
-    rm -f "${KUBECONFIG_PATH}"
-    rm -f .task/*
-fi
+# Remove task markers
+rm -f .task/*
 
 echo "Cleanup completed successfully!"

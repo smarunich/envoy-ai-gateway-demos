@@ -2,26 +2,24 @@
 set -e
 
 # Verify the installation status
-# Usage: ./verify-installation.sh <KUBECONFIG_PATH>
-
-KUBECONFIG_PATH=${1:-"./kubeconfig.yaml"}
+# Usage: ./verify-installation.sh
 
 echo "=== Cluster Status ==="
-kubectl --kubeconfig="${KUBECONFIG_PATH}" get nodes
+kubectl get nodes
 
 echo -e "\n=== Envoy Gateway Pods ==="
-kubectl --kubeconfig="${KUBECONFIG_PATH}" get pods -n envoy-gateway-system
+kubectl get pods -n envoy-gateway-system
 
 echo -e "\n=== Envoy AI Gateway Pods ==="
-kubectl --kubeconfig="${KUBECONFIG_PATH}" get pods -n envoy-ai-gateway-system
+kubectl get pods -n envoy-ai-gateway-system
 
 echo -e "\n=== Gateway Classes ==="
-kubectl --kubeconfig="${KUBECONFIG_PATH}" get gatewayclasses
+kubectl get gatewayclasses
 
 echo -e "\n=== Gateways ==="
-kubectl --kubeconfig="${KUBECONFIG_PATH}" get gateways -A
+kubectl get gateways -A
 
 echo -e "\n=== Services ==="
-kubectl --kubeconfig="${KUBECONFIG_PATH}" get services -A
+kubectl get services -A
 
 echo -e "\n=== Installation Verification Complete ==="

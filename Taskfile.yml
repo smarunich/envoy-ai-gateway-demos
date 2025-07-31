@@ -5,10 +5,6 @@ vars:
   KIND_VERSION: v0.29.0
   ENVOY_GATEWAY_VERSION: v0.0.0-latest
   ENVOY_AI_GATEWAY_VERSION: v0.0.0-latest
-  KUBECONFIG: "{{.PWD}}/kubeconfig.yaml"
-
-env:
-  KUBECONFIG: "{{.KUBECONFIG}}"
 
 tasks:
   # Main setup tasks in execution order
@@ -45,44 +41,42 @@ tasks:
     desc: Create kind cluster
     deps: [install-deps]
     cmds:
-      - ./scripts/create-cluster.sh {{.CLUSTER_NAME}} {{.KUBECONFIG}}
-      - kind export kubeconfig --name {{.CLUSTER_NAME}} --kubeconfig {{.KUBECONFIG}}
+      - ./scripts/create-cluster.sh {{.CLUSTER_NAME}}
+      - kind export kubeconfig --name {{.CLUSTER_NAME}}
       - touch .task/create-cluster.done
     generates:
       - .task/create-cluster.done
-      - "{{.KUBECONFIG}}"
     status:
       - test -f .task/create-cluster.done
-      - test -f "{{.KUBECONFIG}}"
       - kind get clusters | grep -q "{{.CLUSTER_NAME}}"
 
   install-envoy-gateway:
     desc: Install Envoy Gateway using Helm
     deps: [create-cluster]
     cmds:
-      - ./scripts/install-envoy-gateway.sh {{.ENVOY_GATEWAY_VERSION}} {{.KUBECONFIG}}
+      - ./scripts/install-envoy-gateway.sh {{.ENVOY_GATEWAY_VERSION}}
       - touch .task/install-envoy-gateway.done
     generates:
       - .task/install-envoy-gateway.done
     status:
       - test -f .task/install-envoy-gateway.done
-      - kubectl --kubeconfig={{.KUBECONFIG}} get namespace envoy-gateway-system
-      - kubectl --kubeconfig={{.KUBECONFIG}} get deployment -n envoy-gateway-system envoy-gateway
+      - kubectl get namespace envoy-gateway-system
+      - kubectl get deployment -n envoy-gateway-system envoy-gateway
 
   install-envoy-ai-gateway:
     desc: Install Envoy AI Gateway using Helm
     deps: [install-envoy-gateway]
     cmds:
-      - ./scripts/install-envoy-ai-gateway.sh {{.ENVOY_AI_GATEWAY_VERSION}} {{.KUBECONFIG}}
+      - ./scripts/install-envoy-ai-gateway.sh {{.ENVOY_AI_GATEWAY_VERSION}}
       - touch .task/install-envoy-ai-gateway.done
     generates:
       - .task/install-envoy-ai-gateway.done
     status:
       - test -f .task/install-envoy-ai-gateway.done
-      - kubectl --kubeconfig={{.KUBECONFIG}} get namespace envoy-ai-gateway-system
-      - kubectl --kubeconfig={{.KUBECONFIG}} get deployment -n envoy-ai-gateway-system ai-gateway-controller
-      - kubectl --kubeconfig={{.KUBECONFIG}} get deployment -n redis-system redis
-      - kubectl --kubeconfig={{.KUBECONFIG}} get clusterrole ai-gateway-controller
+      - kubectl get namespace envoy-ai-gateway-system
+      - kubectl get deployment -n envoy-ai-gateway-system ai-gateway-controller
+      - kubectl get deployment -n redis-system redis
+      - kubectl get clusterrole ai-gateway-controller
 
   # Status and verification tasks
   verify-installation:
@@ -93,24 +87,24 @@ tasks:
         echo "Use 'task --status <task-name>' to check individual tasks"
         echo "Use 'task --status setup-all' to check overall setup"
         echo ""
-      - ./scripts/verify-installation.sh {{.KUBECONFIG}}
+      - ./scripts/verify-installation.sh
 
   # Utility tasks
   cleanup:
     desc: Clean up the kind cluster and resources
     cmds:
-      - ./scripts/cleanup.sh {{.KUBECONFIG}} {{.CLUSTER_NAME}}
+      - ./scripts/cleanup.sh {{.CLUSTER_NAME}}
 
   # Monitoring and debugging tasks
   logs-envoy-gateway:
     desc: Show Envoy Gateway logs
     cmds:
-      - kubectl --kubeconfig={{.KUBECONFIG}} logs -n envoy-gateway-system -l app.kubernetes.io/name=envoy-gateway --tail=100
+      - kubectl logs -n envoy-gateway-system -l app.kubernetes.io/name=envoy-gateway --tail=100
 
   logs-ai-gateway:
     desc: Show Envoy AI Gateway logs
     cmds:
-      - kubectl --kubeconfig={{.KUBECONFIG}} logs -n envoy-ai-gateway-system -l app.kubernetes.io/name=ai-gateway-controller --tail=100
+      - kubectl logs -n envoy-ai-gateway-system -l app.kubernetes.io/name=ai-gateway-controller --tail=100
 
   port-forward:
     desc: Port forward to access the gateway (localhost:8080)
@@ -118,32 +112,9 @@ tasks:
       - |
         echo "Port forwarding to Envoy Gateway service on localhost:8080"
         echo "Access your applications through http://localhost:8080"
-        kubectl --kubeconfig={{.KUBECONFIG}} port-forward -n envoy-gateway-system \
+        kubectl port-forward -n envoy-gateway-system \
           service/envoy-gateway-proxy 8080:80
 
-  cleanup:
-    desc: Clean up the kind cluster and resources
-    cmds:
-      - ./scripts/cleanup.sh {{.KUBECONFIG}}
-
-  logs-envoy-gateway:
-    desc: Show Envoy Gateway logs
-    cmds:
-      - kubectl --kubeconfig="{{.KUBECONFIG}}" logs -n envoy-gateway-system -l app.kubernetes.io/name=envoy-gateway --tail=100
-
-  logs-ai-gateway:
-    desc: Show Envoy AI Gateway logs
-    cmds:
-      - kubectl --kubeconfig="{{.KUBECONFIG}}" logs -n envoy-ai-gateway-system -l app.kubernetes.io/name=ai-gateway-controller --tail=100
-
-  port-forward:
-    desc: Port forward to access the gateway (localhost:8080)
-    cmds:
-      - |
-        echo "Port forwarding to Envoy Gateway service on localhost:8080"
-        echo "Access your applications through http://localhost:8080"
-        kubectl --kubeconfig="{{.KUBECONFIG}}" port-forward -n envoy-gateway-system \
-          service/envoy-gateway-proxy 8080:80
 
   kubectx:
     desc: Switch to the kind cluster context

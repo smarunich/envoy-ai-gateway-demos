@@ -105,7 +105,6 @@ The following environment variables can be customized in `Taskfile.yml`:
 - `KIND_VERSION` (default: `v0.29.0`)
 - `ENVOY_GATEWAY_VERSION` (default: `v0.0.0-latest`)
 - `ENVOY_AI_GATEWAY_VERSION` (default: `v0.0.0-latest`)
-- `KUBECONFIG` (default: `./kubeconfig.yaml`)
 
 
 ### 🏗️ Core Setup Tasks
