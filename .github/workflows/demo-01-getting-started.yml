@@ -28,27 +28,12 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Kubernetes cluster with Envoy Gateway
-      run: |
-        echo "🚀 Setting up Kubernetes cluster with Envoy Gateway..."
-        # Go back to root directory for initial setup
-        cd ../../
-        task setup-all
-        
-    - name: Wait for Envoy Gateway to be ready
-      run: |
-        echo "⏳ Waiting for Envoy Gateway to be ready..."
-        cd ../../
-        task verify-installation
-
     - name: Deploy demo components
       run: |
         echo "🚀 Deploying demo components..."
         # Export kubeconfig from kind cluster
-        cd ../../
-        kind export kubeconfig --name envoy-ai-gateway-demo
         cd demos/01-getting-started
-        task deploy
+        task setup
         
     - name: Wait for demo components to be ready
       run: |

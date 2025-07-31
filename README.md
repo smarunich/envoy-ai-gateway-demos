@@ -40,6 +40,8 @@ Showcasing how to deploy, configure, and use AI Gateway features in Kubernetes e
 
 ## 🚀 Available Demos
 
+> 💡 **Each demo includes its own comprehensive README with detailed setup instructions, configuration options, and usage examples. Always refer to the individual demo README for complete guidance.**
+
 ### [01-getting-started](./demos/01-getting-started/)
 A comprehensive introduction to Envoy AI Gateway featuring:
 - **LLM-D Inference Simulator** as a lightweight AI backend
@@ -48,11 +50,14 @@ A comprehensive introduction to Envoy AI Gateway featuring:
 - **Automated testing suite** with GitHub Actions integration
 - **Performance tuning** (10ms TTFT, 20ms inter-token latency)
 
+📖 **[Read the full demo README](./demos/01-getting-started/README.md)** for step-by-step instructions and detailed configuration.
+
 ## 🛠️ Prerequisites
 
 Before running any demos, ensure you have:
 
 - **Taskfile** - Task runner for automation
+
   ```bash
   sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
   ```
@@ -84,8 +89,12 @@ Jump directly into a demo:
 
 ```bash
 cd demos/01-getting-started
+# Read the demo README first for detailed instructions
+cat README.md
 task setup
 ```
+
+> 📝 **Important**: Each demo has its own README with specific setup instructions, configuration details, and usage examples. Always check the demo's README before running tasks.
 
 ## 📋 Available Tasks
 

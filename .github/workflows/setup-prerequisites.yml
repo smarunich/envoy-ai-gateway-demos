@@ -7,14 +7,14 @@ jobs:
   setup:
     runs-on: ubuntu-latest
     steps:
-    - name: Install Task
-      uses: arduino/setup-task@v2
-      with:
-        version: 3.x
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
         
     - name: Setup prerequisites
       run: |
+
+        # Install Task
+
+        sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+
         # Install kubectl
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
         chmod +x kubectl
