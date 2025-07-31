@@ -13,7 +13,7 @@ jobs:
 
         # Install Task
 
-        sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin/
+        sudo sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin/
 
         # Install kubectl
         curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
