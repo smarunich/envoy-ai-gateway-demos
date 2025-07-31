@@ -1,6 +1,3 @@
-<div align="center">
-
-![Envoy AI Gateway](https://aigateway.envoyproxy.io/img/ai-gw-logo.svg)
 
 # Envoy AI Gateway Demos Repository
 
