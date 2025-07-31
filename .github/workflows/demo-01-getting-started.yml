@@ -72,13 +72,6 @@ jobs:
         cd demos/01-getting-started
         task setup
         
-    - name: Verify deployment status
-      run: |
-        echo "📊 Checking deployment status..."
-        kubectl get pods --all-namespaces
-        kubectl get gateways --all-namespaces
-        kubectl get httproutes --all-namespaces
-        task status
 
     - name: Start port forwarding in background
       run: |
