@@ -72,11 +72,6 @@ jobs:
         cd demos/01-getting-started
         task setup
         
-    - name: Wait for demo components to be ready
-      run: |
-        echo "⏳ Waiting for demo components to be ready..."
-        task wait-ready
-        
     - name: Verify deployment status
       run: |
         echo "📊 Checking deployment status..."
