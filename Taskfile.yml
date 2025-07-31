@@ -145,6 +145,11 @@ tasks:
         kubectl --kubeconfig="{{.KUBECONFIG}}" port-forward -n envoy-gateway-system \
           service/envoy-gateway-proxy 8080:80
 
+  kubectx:
+    desc: Switch to the kind cluster context
+    cmds:
+      - kubectl config use-context kind-{{.CLUSTER_NAME}} --kubeconfig={{.KUBECONFIG}}
+
   # Default task - shows tasks in definition order
   default:
     desc: Show available tasks in logical order

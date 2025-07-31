@@ -1,0 +1,45 @@
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIGatewayRoute
+metadata:
+  name: llm-d-inference-sim-route
+  namespace: default
+spec:
+  schema:
+    name: OpenAI
+  parentRefs:
+    - name: envoy-ai-gateway
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  rules:
+    - matches:
+        - headers:
+            - type: Exact
+              name: x-ai-eg-model
+              value: qwen3
+      backendRefs:
+        - name: llm-d-inference-sim-aiservicebackend
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIServiceBackend
+metadata:
+  name: llm-d-inference-sim-aiservicebackend
+  namespace: default
+spec:
+  schema:
+    name: OpenAI
+  backendRef:
+    name: llm-d-inference-sim-backend
+    kind: Backend
+    group: gateway.envoyproxy.io
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: llm-d-inference-sim-backend
+  namespace: default
+spec:
+  endpoints:
+    - fqdn:
+        hostname: llm-d-inference-sim.default.svc.cluster.local
+        port: 8000

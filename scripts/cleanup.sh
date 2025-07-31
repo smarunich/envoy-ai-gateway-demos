@@ -21,6 +21,7 @@ fi
 if [ -f "${KUBECONFIG_PATH}" ]; then
     echo "Removing kubeconfig: ${KUBECONFIG_PATH}"
     rm -f "${KUBECONFIG_PATH}"
+    rm -f .task/*
 fi
 
 echo "Cleanup completed successfully!"

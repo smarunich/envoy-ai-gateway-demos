@@ -1,0 +1,140 @@
+version: '3'
+
+vars:
+  NAMESPACE: default
+  GATEWAY_NAME: envoy-ai-gateway
+  BACKEND_NAME: llm-d-inference-sim
+  MODEL: qwen3
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list --sort=none
+
+
+  setup:
+    desc: "Complete setup of the demo environment"
+    cmds:
+      - task: deploy
+      - task: wait-ready
+      - echo "Setup complete! Run 'task test' to test the gateway"
+
+  deploy:
+    desc: "Deploy the Envoy AI Gateway with LLM Infinity Simulator"
+    cmds:
+      - kubectl apply -f envoy-ai-gateway-infra.yaml
+      - kubectl apply -f envoy-ai-gateway-aigatewayroute.yaml
+      - kubectl apply -f llm-d-inference-sim.yaml
+      - echo "Deployment initiated..."
+
+  wait-ready:
+    desc: "Wait for all components to be ready"
+    cmds:
+      - echo "Waiting for LLM Infinity Simulator to be ready..."
+      - kubectl wait --for=condition=ready pod -l app={{.BACKEND_NAME}} -n {{.NAMESPACE}} --timeout=300s
+      - echo "Waiting for Gateway to be ready..."
+      - kubectl wait --for=condition=ready -l gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -n envoy-gateway-system --timeout=300s || echo "Gateway may take longer to be ready, continuing..."
+      - echo "All components are ready!"
+
+  port-forward:
+    desc: "Start port forwarding to access the gateway locally"
+    cmds:
+      - |
+        ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
+        echo "Port forwarding to service: $ENVOY_SERVICE"
+        kubectl port-forward -n envoy-gateway-system svc/$ENVOY_SERVICE 8080:80
+
+  test:
+    desc: "Test the AI Gateway endpoints"
+    deps: [test-chat, test-embeddings, test-models]
+
+  test-chat:
+    desc: "Test chat completions endpoint"
+    cmds:
+      - |
+        echo "Testing chat completions..."
+        curl -s -H "Content-Type: application/json" \
+          -d '{
+            "model": "{{.MODEL}}",
+            "messages": [{"role": "user", "content": "Hello, AI Gateway with LLM Infinity!"}]
+          }' \
+          http://localhost:8080/v1/chat/completions | jq . || echo "Make sure port-forward is running: task port-forward"
+
+  test-embeddings:
+    desc: "Test embeddings endpoint"
+    cmds:
+      - |
+        echo "Testing embeddings..."
+        curl -s -H "Content-Type: application/json" \
+          -d '{
+            "model": "{{.MODEL}}",
+            "input": "Testing embeddings with LLM Infinity Simulator"
+          }' \
+          http://localhost:8080/v1/embeddings | jq . || echo "Make sure port-forward is running: task port-forward"
+
+  test-models:
+    desc: "Test models endpoint"
+    cmds:
+      - |
+        echo "Testing models endpoint..."
+        curl -s http://localhost:8080/v1/models | jq . || echo "Make sure port-forward is running: task port-forward"
+
+  test-stream:
+    desc: "Test streaming chat completions"
+    cmds:
+      - |
+        echo "Testing streaming chat completions..."
+        curl -s -H "Content-Type: application/json" \
+          -d '{
+            "model": "{{.MODEL}}",
+            "messages": [{"role": "user", "content": "Stream this response please"}],
+            "stream": true
+          }' \
+          http://localhost:8080/v1/chat/completions || echo "Make sure port-forward is running: task port-forward"
+
+  logs:
+    desc: "Show logs from all components"
+    cmds:
+      - task: logs-simulator
+      - task: logs-gateway
+
+  logs-simulator:
+    desc: "Show logs from LLM Infinity Simulator"
+    cmds:
+      - kubectl logs -l app={{.BACKEND_NAME}} -n {{.NAMESPACE}} --tail=50 -f
+
+  logs-gateway:
+    desc: "Show logs from Envoy Gateway"
+    cmds:
+      - |
+        ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}},gateway.envoyproxy.io/owning-gateway-namespace={{.NAMESPACE}} -o jsonpath='{.items[0].metadata.name}')
+        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=50 -f
+
+  status:
+    desc: "Check status of all components"
+    cmds:
+      - echo "=== Deployments ==="
+      - kubectl get deployments -n {{.NAMESPACE}} -l app={{.BACKEND_NAME}}
+      - echo -e "\n=== Pods ==="
+      - kubectl get pods -n {{.NAMESPACE}} -l app={{.BACKEND_NAME}}
+      - echo -e "\n=== Services ==="
+      - kubectl get svc -n {{.NAMESPACE}} {{.BACKEND_NAME}}
+      - echo -e "\n=== Gateway ==="
+      - kubectl get gateway -n {{.NAMESPACE}} {{.GATEWAY_NAME}}
+      - echo -e "\n=== AI Routes ==="
+      - kubectl get aigatewayroute -n {{.NAMESPACE}}
+      - echo -e "\n=== AI Service Backends ==="
+      - kubectl get aiservicebackend -n {{.NAMESPACE}}
+
+  cleanup:
+    desc: "Clean up all demo resources"
+    cmds:
+      - kubectl delete -f envoy-ai-gateway-config.yaml --ignore-not-found=true
+      - echo "Cleanup complete"
+
+  restart:
+    desc: "Restart the LLM Infinity Simulator"
+    cmds:
+      - kubectl rollout restart deployment/{{.BACKEND_NAME}} -n {{.NAMESPACE}}
+      - task: wait-ready
