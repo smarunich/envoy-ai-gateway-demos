@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  test-platform:
     runs-on: ubuntu-latest
     steps:
       
