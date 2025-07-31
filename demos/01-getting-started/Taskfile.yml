@@ -45,12 +45,58 @@ tasks:
       - echo "All components are ready!"
 
   port-forward:
-    desc: "Start port forwarding to access the gateway locally"
+    desc: "Start port forwarding in background"
     cmds:
       - |
+        # Check if port-forward is already running
+        if [ -f .task/port-forward.pid ]; then
+          PID=$(cat .task/port-forward.pid)
+          if kill -0 $PID 2>/dev/null; then
+            echo "Port forwarding already running on PID $PID"
+            exit 0
+          fi
+        fi
+        
+        # Start port forwarding in background
+        mkdir -p .task
         ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
-        echo "Port forwarding to service: $ENVOY_SERVICE"
-        kubectl port-forward -n envoy-gateway-system svc/$ENVOY_SERVICE {{.PORT_FORWARD}}:80
+        echo "Starting port forwarding to service: $ENVOY_SERVICE on port {{.PORT_FORWARD}}"
+        nohup kubectl port-forward -n envoy-gateway-system svc/$ENVOY_SERVICE {{.PORT_FORWARD}}:80 > .task/port-forward.log 2>&1 &
+        echo $! > .task/port-forward.pid
+        
+        # Wait for port forwarding to be ready
+        echo "Waiting for port forwarding to be ready..."
+        sleep 3
+        echo "✅ Port forwarding started in background (PID: $(cat .task/port-forward.pid))"
+        echo "Use 'task stop-port-forward' to stop"
+    generates:
+      - .task/port-forward.pid
+    status:
+      - test -f .task/port-forward.pid
+      - kill -0 $(cat .task/port-forward.pid 2>/dev/null) 2>/dev/null
+
+  stop-port-forward:
+    desc: "Stop background port forwarding"
+    cmds:
+      - |
+        if [ -f .task/port-forward.pid ]; then
+          PID=$(cat .task/port-forward.pid)
+          if kill -0 $PID 2>/dev/null; then
+            echo "Stopping port forwarding (PID: $PID)"
+            kill $PID
+            sleep 2
+            # Force kill if still running
+            kill -9 $PID 2>/dev/null || true
+            echo "✅ Port forwarding stopped"
+          else
+            echo "Port forwarding process not running"
+          fi
+          rm -f .task/port-forward.pid .task/port-forward.log
+        else
+          echo "No port forwarding process found"
+        fi
+        # Also kill any kubectl port-forward processes for this port
+        pkill -f "kubectl.*port-forward.*{{.PORT_FORWARD}}" || true
 
   test:
     desc: "Test the AI Gateway endpoints"
@@ -63,7 +109,7 @@ tasks:
     cmds:
       - |
         echo "Testing chat completions..."
-        curl -s -H "Content-Type: application/json" \
+        curl -H "Content-Type: application/json" \
           -d '{
             "model": "{{.MODEL}}",
             "messages": [{"role": "user", "content": "Hello, AI Gateway with LLM-D Inference!"}]
@@ -75,7 +121,7 @@ tasks:
     cmds:
       - |
         echo "Testing models endpoint..."
-        curl -s http://localhost:{{.PORT_FORWARD}}/v1/models | jq . || echo "Make sure port-forward is running: task port-forward"
+        curl http://localhost:{{.PORT_FORWARD}}/v1/models | jq . || echo "Make sure port-forward is running: task port-forward"
 
 
   test-stream:
@@ -83,7 +129,7 @@ tasks:
     cmds:
       - |
         echo "Testing streaming chat completions..."
-        curl -s -H "Content-Type: application/json" \
+        curl -H "Content-Type: application/json" \
           -d '{
             "model": "{{.MODEL}}",
             "messages": [{"role": "user", "content": "Stream this response please"}],
@@ -100,14 +146,14 @@ tasks:
   logs-simulator:
     desc: "Show logs from LLM-D Inference Simulator"
     cmds:
-      - kubectl logs -l app={{.BACKEND_NAME}} -n {{.NAMESPACE}} --tail=50 -f
+      - kubectl logs -l app={{.BACKEND_NAME}} -n {{.NAMESPACE}} --tail=10
 
   logs-gateway:
     desc: "Show logs from Envoy Gateway"
     cmds:
       - |
         ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}},gateway.envoyproxy.io/owning-gateway-namespace={{.NAMESPACE}} -o jsonpath='{.items[0].metadata.name}')
-        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=50 -f
+        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=10 | while read line; do echo "$line" | jq '.' 2>/dev/null || echo "$line"; done
 
   status:
     desc: "Check status of all components"
@@ -140,4 +186,4 @@ tasks:
   footer:
     desc: "Show footer"
     cmds:
-      - echo "Check out the Envoy AI Gateway Basic Usage Guide at https://aigateway.envoyproxy.io/docs/getting-started/basic-usage'
+      - echo "Check out the Envoy AI Gateway Basic Usage Guide at https://aigateway.envoyproxy.io/docs/getting-started/basic-usage"
