@@ -56,11 +56,12 @@ A comprehensive introduction to Envoy AI Gateway featuring:
 
 Before running any demos, ensure you have:
 
-- **Taskfile** - Task runner for automation
+- **Taskfile** - Task runner for automation [Installation](https://taskfile.dev/installation/) 
 
   ```bash
-  sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+  sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin/
   ```
+  
 - **kind** - Kubernetes in Docker (installed automatically)
 - **kubectl** - Kubernetes CLI (installed automatically)
 - **helm** - Kubernetes package manager (installed automatically)
