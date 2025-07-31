@@ -46,6 +46,7 @@ tasks:
     deps: [install-deps]
     cmds:
       - ./scripts/create-cluster.sh {{.CLUSTER_NAME}} {{.KUBECONFIG}}
+      - kubectl config use-context kind-{{.CLUSTER_NAME}} --kubeconfig={{.KUBECONFIG}}
       - touch .task/create-cluster.done
     generates:
       - .task/create-cluster.done
