@@ -46,7 +46,7 @@ tasks:
     deps: [install-deps]
     cmds:
       - ./scripts/create-cluster.sh {{.CLUSTER_NAME}} {{.KUBECONFIG}}
-      - kubectl config use-context kind-{{.CLUSTER_NAME}} --kubeconfig={{.KUBECONFIG}}
+      - kind export kubeconfig --name {{.CLUSTER_NAME}} --kubeconfig {{.KUBECONFIG}}
       - touch .task/create-cluster.done
     generates:
       - .task/create-cluster.done
@@ -148,7 +148,7 @@ tasks:
   kubectx:
     desc: Switch to the kind cluster context
     cmds:
-      - kubectl config use-context kind-{{.CLUSTER_NAME}} --kubeconfig={{.KUBECONFIG}}
+      - kind export kubeconfig --name {{.CLUSTER_NAME}}
 
   # Default task - shows tasks in definition order
   default:
