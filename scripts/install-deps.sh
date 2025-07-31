@@ -52,7 +52,7 @@ echo "Dependencies installation completed!"
 
 # Install jq if not present
 if ! command -v jq &> /dev/null; then
-    echo "Instal jq..."
+    echo "Install jq..."
 else
     echo "jq already installed ($(jq --version))"
 fi
