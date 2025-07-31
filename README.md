@@ -2,6 +2,17 @@
 
 This repository contains a comprehensive Taskfile for setting up and managing an Envoy AI Gateway demonstration environment on kind (Kubernetes in Docker).
 
+# Prerequisites
+
+- Taskfile
+   ```bash
+   sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d
+   ```
+- kind
+- kubectl
+- helm
+- jq
+
 ## Quick Start
 
 To set up the complete environment with one command:

@@ -1,6 +1,6 @@
 # task
 
-.task/
+.task/*
 
  Kubernetes configuration files (contain sensitive data)
 kubeconfig.yaml

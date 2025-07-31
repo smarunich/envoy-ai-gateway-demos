@@ -49,3 +49,11 @@ else
 fi
 
 echo "Dependencies installation completed!"
+
+# Install jq if not present
+if ! command -v jq &> /dev/null; then
+    echo "Installing jq..."
+    brew install jq
+else
+    echo "jq already installed ($(jq --version))"
+fi

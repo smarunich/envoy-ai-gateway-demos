@@ -61,25 +61,3 @@ echo "AI Gateway configuration applied successfully!"
 # Show status
 echo "Envoy Gateway pods after configuration:"
 kubectl --kubeconfig="${KUBECONFIG_PATH}" get pods -n envoy-gateway-system
-
-echo "Deploying GatewayClass and Gateway..."
-kubectl apply -f - <<EOF
-apiVersion: gateway.networking.k8s.io/v1
-kind: GatewayClass
-metadata:
-  name: envoy-ai-gateway
-spec:
-  controllerName: gateway.envoyproxy.io/gatewayclass-controller
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: envoy-ai-gateway
-  namespace: default
-spec:
-  gatewayClassName: envoy-ai-gateway
-  listeners:
-    - name: http
-      protocol: HTTP
-      port: 80
-EOF
