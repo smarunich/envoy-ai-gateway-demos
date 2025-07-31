@@ -1,11 +1,10 @@
 <div align="center">
 
-![Envoy AI Gateway](https://raw.githubusercontent.com/envoyproxy/artwork/main/PNG/Envoy_Logo_Final_PANTONE.png)
+![Envoy AI Gateway](https://aigateway.envoyproxy.io/img/ai-gw-logo.svg)
 
 # Envoy AI Gateway Demos Repository
 
 [![GitHub Release](https://img.shields.io/github/v/release/envoyproxy/ai-gateway?style=flat-square)](https://github.com/envoyproxy/ai-gateway/releases)
-[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/envoyproxy/ai-gateway/ci.yml?style=flat-square)](https://github.com/envoyproxy/ai-gateway/actions)
 [![Slack](https://img.shields.io/badge/slack-envoy--ai--gateway-blue?style=flat-square&logo=slack)](https://envoyproxy.slack.com/archives/C07Q4N24VAA)
 [![Documentation](https://img.shields.io/badge/docs-aigateway.envoyproxy.io-blue?style=flat-square)](https://aigateway.envoyproxy.io/docs/)
 
@@ -98,6 +97,17 @@ View all available tasks:
 task --list
 ```
 
+## 🔧 Configuration
+
+The following environment variables can be customized in `Taskfile.yml`:
+
+- `CLUSTER_NAME` (default: `envoy-ai-gateway-demo`)
+- `KIND_VERSION` (default: `v0.29.0`)
+- `ENVOY_GATEWAY_VERSION` (default: `v0.0.0-latest`)
+- `ENVOY_AI_GATEWAY_VERSION` (default: `v0.0.0-latest`)
+- `KUBECONFIG` (default: `./kubeconfig.yaml`)
+
+
 ### 🏗️ Core Setup Tasks
 
 - `task setup-all` - Complete environment setup from scratch
@@ -125,29 +135,6 @@ task --list
 - `task port-forward` - Port forward to access gateway (localhost:8080)
 - `task verify-installation` - Verify installation status
 
-## 🔧 Configuration
-
-The following environment variables can be customized in `Taskfile.yml`:
-
-- `CLUSTER_NAME` (default: `envoy-ai-gateway-demo`)
-- `KIND_VERSION` (default: `v0.29.0`)
-- `ENVOY_GATEWAY_VERSION` (default: `v0.0.0-latest`)
-- `ENVOY_AI_GATEWAY_VERSION` (default: `v0.0.0-latest`)
-- `KUBECONFIG` (default: `./kubeconfig.yaml`)
-
-## 🔄 CI/CD Integration
-
-This repository includes comprehensive GitHub Actions workflows:
-
-### Setup Validation Workflow
-- **Triggers**: Push/PR to main/develop branches
-- **Purpose**: Validates core setup and dependency installation
-- **File**: `.github/workflows/setup-validation.yml`
-
-### Demo Testing Workflows
-- **Demo 01**: `.github/workflows/demo-01-getting-started.yml`
-- **Features**: End-to-end testing, comprehensive diagnostics, automated cleanup
-- **Triggers**: Changes to demo files, manual dispatch
 
 ## 🐛 Troubleshooting
 
@@ -225,15 +212,7 @@ This repository includes comprehensive GitHub Actions workflows:
 - **[Envoy Gateway](https://gateway.envoyproxy.io/)** - Core Envoy Gateway project
 - **[Taskfile](https://taskfile.dev/)** - Task runner documentation
 - **[Kind](https://kind.sigs.k8s.io/)** - Kubernetes in Docker
-- **[LLM-D Inference Simulator](https://github.com/solo-io/llm-d)** - Lightweight AI backend for testing
-
-## 📄 License
-
-This project is licensed under the Apache License 2.0. See the LICENSE file for details.
-
----
-
----
+- **[LLM-D Inference Simulator](https://github.com/llm-d/llm-d-inference-sim)** - Lightweight AI backend for testing
 
 <div align="center">
 
@@ -279,4 +258,4 @@ graph TD
 ### 🔧 Related Projects
 - **[Envoy Gateway](https://gateway.envoyproxy.io/)** - Core gateway functionality
 - **[Envoy Proxy](https://envoyproxy.io/)** - The underlying proxy technology
-- **[LLM-D Inference Simulator](https://github.com/solo-io/llm-d)** - Lightweight testing backend
+- **[LLM-D Inference Simulator](https://github.com/llm-d/llm-d-inference-sim)** - Lightweight testing backend
