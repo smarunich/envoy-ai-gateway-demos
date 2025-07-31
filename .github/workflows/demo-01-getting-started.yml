@@ -16,6 +16,9 @@ on:
 jobs:
   demo-test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./demos/01-getting-started
     
     steps:
     - name: Checkout code
@@ -68,12 +71,13 @@ jobs:
     - name: Deploy demo components
       run: |
         echo "🚀 Deploying demo components..."
-        # Export kubeconfig from kind cluster
-        cd demos/01-getting-started
         task setup
-        # Start port forwarding in background
+
+    - name: Start port forwarding in background
+      run: |
+        echo "🔌 Starting port forwarding..."
         task port-forward
-        
+
     - name: Test chat completions endpoint
       run: |
         echo "🧪 Testing chat completions endpoint..."
