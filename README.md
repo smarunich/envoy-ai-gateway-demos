@@ -61,7 +61,7 @@ Before running any demos, ensure you have:
   ```bash
   sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin/
   ```
-  
+
 - **kind** - Kubernetes in Docker (installed automatically)
 - **kubectl** - Kubernetes CLI (installed automatically)
 - **helm** - Kubernetes package manager (installed automatically)
@@ -220,31 +220,9 @@ The following environment variables can be customized in `Taskfile.yml`:
 - **[Kind](https://kind.sigs.k8s.io/)** - Kubernetes in Docker
 - **[LLM-D Inference Simulator](https://github.com/llm-d/llm-d-inference-sim)** - Lightweight AI backend for testing
 
-<div align="center">
-
-![Envoy AI Gateway](https://raw.githubusercontent.com/envoyproxy/artwork/main/PNG/Envoy_Logo_Final_PANTONE.png)
-
 **Ready to get started?** 
 
 Jump into the [**01-getting-started demo**](./demos/01-getting-started/) or run `task setup-all` to set up the complete environment! 🎉
-
-</div>
-
-## 🏗️ Architecture Overview
-
-```mermaid
-graph TD
-    A[Client Applications] --> B[Envoy Gateway]
-    B --> C[Envoy AI Gateway Controller]
-    C --> D[AI/LLM Services]
-    C --> E[Rate Limiting & Policies]
-    C --> F[Token Management]
-    
-    style A fill:#e1f5fe
-    style B fill:#f3e5f5
-    style C fill:#e8f5e8
-    style D fill:#fff3e0
-```
 
 ## 🔗 Official Documentation & Resources
 
