@@ -1,4 +1,8 @@
-# Kubernetes configuration files (contain sensitive data)
+# task
+
+.task/
+
+ Kubernetes configuration files (contain sensitive data)
 kubeconfig.yaml
 kubeconfig*.yaml
 *.kubeconfig
