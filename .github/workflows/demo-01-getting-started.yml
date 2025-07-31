@@ -14,11 +14,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  setup-validation:
-    uses: ./.github/workflows/setup-validation.yml
-
   demo-test:
-    needs: setup-validation
     runs-on: ubuntu-latest
     
     steps:
