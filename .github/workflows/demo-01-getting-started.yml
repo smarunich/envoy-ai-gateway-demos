@@ -71,13 +71,9 @@ jobs:
         # Export kubeconfig from kind cluster
         cd demos/01-getting-started
         task setup
-        
-
-    - name: Start port forwarding in background
-      run: |
-        echo "🔌 Starting port forwarding..."
+        # Start port forwarding in background
         task port-forward
-
+        
     - name: Test chat completions endpoint
       run: |
         echo "🧪 Testing chat completions endpoint..."
