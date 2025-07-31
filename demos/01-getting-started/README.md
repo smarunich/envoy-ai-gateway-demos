@@ -44,6 +44,8 @@ task port-forward
 task test
 ```
 
+> **Next Steps**: Once you've completed the setup and testing, check out the [Envoy AI Gateway Basic Usage Guide](https://aigateway.envoyproxy.io/docs/getting-started/basic-usage) to learn more about features and configuration options.
+
 ## Available Tasks
 
 Run `task` to see all available tasks:

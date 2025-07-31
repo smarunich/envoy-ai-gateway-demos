@@ -21,6 +21,7 @@ tasks:
       - task: wait-ready
       - echo "Setup complete! Run 'task test' to test the gateway"
 
+
   deploy:
     desc: "Deploy the Envoy AI Gateway with LLM-D Inference Simulator"
     cmds:
@@ -49,6 +50,8 @@ tasks:
   test:
     desc: "Test the AI Gateway endpoints"
     deps: [test-chat, test-stream, test-models]
+    cmds:
+      - task: footer
 
   test-chat:
     desc: "Test chat completions endpoint"
@@ -68,6 +71,7 @@ tasks:
       - |
         echo "Testing models endpoint..."
         curl -s http://localhost:{{.PORT_FORWARD}}/v1/models | jq . || echo "Make sure port-forward is running: task port-forward"
+
 
   test-stream:
     desc: "Test streaming chat completions"
@@ -127,3 +131,8 @@ tasks:
     cmds:
       - kubectl rollout restart deployment/{{.BACKEND_NAME}} -n {{.NAMESPACE}}
       - task: wait-ready
+
+  footer:
+    desc: "Show footer"
+    cmds:
+      - echo "Next steps: Check out the Envoy AI Gateway Basic Usage Guide at https://aigateway.envoyproxy.io/docs/getting-started/basic-usage"
