@@ -58,11 +58,7 @@ jobs:
         echo "🧹 Cleaning up any existing Kind clusters and containers..."
         # Delete any existing kind clusters
         kind delete clusters --all || true
-        # Remove any lingering containers with our cluster name
-        docker rm -f $(docker ps -aq -f name=envoy-ai-gateway-demo) || true
-        # Clean up any kind-related containers
-        docker rm -f $(docker ps -aq -f label=io.x-k8s.kind.cluster) || true
-      
+
     - name: Run complete setup (following README)
       run: |
         echo "🚀 Running complete setup as documented in README..."

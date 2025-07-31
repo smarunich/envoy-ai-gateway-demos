@@ -14,7 +14,7 @@ tasks:
   # Main setup tasks in execution order
   setup-all:
     desc: Complete setup - create cluster and install all components
-    deps: [install-deps, create-cluster, install-envoy-gateway, install-envoy-ai-gateway]
+    deps: [install-deps, install-envoy-ai-gateway]
     cmds:
       - echo "🎉 Setup complete! Your Envoy AI Gateway is ready."
       - echo "Next steps:"
