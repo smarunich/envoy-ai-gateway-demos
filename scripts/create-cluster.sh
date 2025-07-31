@@ -17,7 +17,7 @@ fi
 
 # Create kind cluster with custom configuration
 echo "Creating new kind cluster..."
-cat <<EOF | kind create cluster --name "${CLUSTER_NAME}" 
+kind create cluster --name "${CLUSTER_NAME}" 
 
 # Export kubeconfig
 echo "Exporting kubeconfig to: ${KUBECONFIG_PATH}"
