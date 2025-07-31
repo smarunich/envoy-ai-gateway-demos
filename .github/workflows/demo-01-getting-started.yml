@@ -1,0 +1,145 @@
+name: Demo 01 - Getting Started
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'demos/01-getting-started/**'
+      - '.github/workflows/demo-01-getting-started.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'demos/01-getting-started/**'
+      - '.github/workflows/demo-01-getting-started.yml'
+  workflow_dispatch:
+
+jobs:
+  setup-prerequisites:
+    uses: ./.github/workflows/setup-prerequisites.yml
+
+  demo-test:
+    needs: setup-prerequisites
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demos/01-getting-started
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Kubernetes cluster with Envoy Gateway
+      run: |
+        echo "🚀 Setting up Kubernetes cluster with Envoy Gateway..."
+        # Go back to root directory for initial setup
+        cd ../../
+        task setup-all
+        
+    - name: Wait for Envoy Gateway to be ready
+      run: |
+        echo "⏳ Waiting for Envoy Gateway to be ready..."
+        cd ../../
+        task verify-installation
+
+    - name: Deploy demo components
+      run: |
+        echo "🚀 Deploying demo components..."
+        # Set KUBECONFIG to use the kind cluster
+        export KUBECONFIG=../../kubeconfig.yaml
+        task deploy
+        
+    - name: Wait for demo components to be ready
+      run: |
+        echo "⏳ Waiting for demo components to be ready..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        task wait-ready
+        
+    - name: Verify deployment status
+      run: |
+        echo "📊 Checking deployment status..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        kubectl get pods --all-namespaces
+        kubectl get gateways --all-namespaces
+        kubectl get httproutes --all-namespaces
+        task status
+
+    - name: Start port forwarding in background
+      run: |
+        echo "🔌 Starting port forwarding..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        # Start port forwarding in background
+        nohup task port-forward > port-forward.log 2>&1 &
+        # Wait a bit for port forwarding to establish
+        sleep 10
+        # Check if port forwarding is working
+        netstat -tlnp | grep :8080 || echo "Port forwarding may not be ready yet"
+
+    - name: Test chat completions endpoint
+      run: |
+        echo "🧪 Testing chat completions endpoint..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        # Wait a bit more to ensure port forwarding is stable
+        sleep 5
+        task test-chat
+
+    - name: Test models endpoint
+      run: |
+        echo "🧪 Testing models endpoint..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        task test-models
+
+    - name: Test streaming endpoint
+      run: |
+        echo "🧪 Testing streaming endpoint..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        task test-stream
+
+    - name: Run all tests
+      run: |
+        echo "🧪 Running all tests..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        task test
+
+    - name: Show component logs
+      if: always()
+      run: |
+        echo "📋 Showing component logs..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        task logs || true
+
+    - name: Show port forwarding logs
+      if: always()
+      run: |
+        echo "📋 Port forwarding logs:"
+        cat port-forward.log || echo "No port-forward.log found"
+
+    - name: Show failure diagnostics
+      if: failure()
+      run: |
+        echo "🔍 Failure diagnostics..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        echo "=== Pods Status ==="
+        kubectl get pods --all-namespaces || true
+        echo "=== Gateway Status ==="
+        kubectl get gateways --all-namespaces || true
+        echo "=== HTTPRoute Status ==="
+        kubectl get httproutes --all-namespaces || true
+        echo "=== Events ==="
+        kubectl get events --all-namespaces --sort-by='.lastTimestamp' || true
+        echo "=== Envoy Gateway Logs ==="
+        kubectl logs -n envoy-gateway-system -l control-plane=envoy-gateway --tail=50 || true
+        echo "=== Demo Component Logs ==="
+        kubectl logs -l app=llm-d-inference-sim --tail=50 || true
+
+    - name: Cleanup
+      if: always()
+      run: |
+        echo "🧹 Cleanup..."
+        export KUBECONFIG=../../kubeconfig.yaml
+        task cleanup || true
+        cd ../../
+        task cleanup || true
+        # Kill any remaining port forwarding processes
+        pkill -f "kubectl port-forward" || true
+        # Clean up kind cluster
+        kind delete clusters --all || true
