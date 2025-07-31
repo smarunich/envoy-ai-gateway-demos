@@ -48,6 +48,12 @@ jobs:
         jq --version
         docker --version
         task --version
+
+    - name: Free up disk space
+      run: |
+        sudo rm -rf /usr/share/dotnet
+        sudo rm -rf /opt/ghc
+        docker system prune -af
       
     - name: Run complete setup (following README)
       run: |
