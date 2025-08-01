@@ -149,7 +149,7 @@ tasks:
             \"model\": \"{{.MODEL}}\",
             \"messages\": [{\"role\": \"user\", \"content\": \"$INPUT\"}]
           }" \
-          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions || \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions || jq || \
           echo "Make sure port-forward is running: task port-forward"
           
   logs:
