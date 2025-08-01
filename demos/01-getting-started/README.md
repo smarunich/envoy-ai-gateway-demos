@@ -171,5 +171,5 @@ After getting familiar with this basic setup, you can:
 ## References
 
 - [Envoy AI Gateway Documentation](https://aigateway.envoyproxy.io/)
-- [LLM-D Inference Simulator](https://llm-d.ai/docs/architecture/Components/inf-simulator)
+- [LLM-D Inference Simulator](https://llm-d.ai/docs/architecture/Components/inference-sim)
 - [Kubernetes Gateway API](https://gateway-api.sigs.k8s.io/)
