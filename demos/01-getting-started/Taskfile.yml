@@ -137,6 +137,21 @@ tasks:
           }' \
           http://localhost:{{.PORT_FORWARD}}/v1/chat/completions || echo "Make sure port-forward is running: task port-forward"
 
+  test-interactive:
+    desc: "Send interactive message"
+    interactive: true
+    cmds:
+      - |
+        echo "Interactive chat..."
+        read -p "Enter your message: " INPUT
+        curl -H "Content-Type: application/json" \
+          -d "{
+            \"model\": \"{{.MODEL}}\",
+            \"messages\": [{\"role\": \"user\", \"content\": \"$INPUT\"}]
+          }" \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions || \
+          echo "Make sure port-forward is running: task port-forward"
+          
   logs:
     desc: "Show logs from all components"
     cmds:
