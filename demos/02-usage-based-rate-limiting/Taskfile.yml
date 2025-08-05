@@ -46,6 +46,12 @@ tasks:
     cmds:
       - task port-forward
 
+  stop-port-forward:
+    desc: "Stop port forwarding (delegates to 01-getting-started)"
+    dir: ../01-getting-started
+    cmds:
+      - task stop-port-forward
+
   test-rate-limits:
     desc: "Test usage-based rate limiting"
     cmds:
