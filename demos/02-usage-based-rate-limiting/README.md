@@ -12,8 +12,6 @@ This demo demonstrates:
 
 ## Prerequisites
 
-- Completed setup of the 01-getting-started demo
-- Kubernetes cluster with Envoy AI Gateway installed
 - `kubectl` configured to access your cluster
 - `task` (Taskfile) installed
 - `jq` for JSON pretty-printing

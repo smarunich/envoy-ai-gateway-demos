@@ -12,7 +12,6 @@ This demo sets up:
 
 ## Prerequisites
 
-- Kubernetes cluster (local or remote)
 - `kubectl` configured to access your cluster
 - `task` (Taskfile) installed ([installation guide](https://taskfile.dev/installation/))
 - `jq` for JSON pretty-printing (optional but recommended)
