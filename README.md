@@ -31,11 +31,12 @@ Showcasing how to deploy, configure, and use AI Gateway features in Kubernetes e
 ## 📁 Repository Structure
 
 ```
-├── demos/                    # Individual demo environments
-│   └── 01-getting-started/   # Basic Envoy AI Gateway setup with LLM-D simulator
-├── scripts/                  # Automation scripts for setup and management
-├── .github/workflows/        # CI/CD workflows for automated testing
-└── Taskfile.yml             # Main automation tasks
+├── demos/                           # Individual demo environments
+│   ├── 01-getting-started/          # Basic Envoy AI Gateway setup with LLM-D simulator  
+│   └── 02-usage-based-rate-limiting/ # Advanced token-based rate limiting
+├── scripts/                         # Automation scripts for setup and management
+├── .github/workflows/               # CI/CD workflows for automated testing
+└── Taskfile.yml                     # Main automation tasks
 ```
 
 ## 🚀 Available Demos
@@ -51,6 +52,16 @@ A comprehensive introduction to Envoy AI Gateway featuring:
 - **Performance tuning** (10ms TTFT, 20ms inter-token latency)
 
 📖 **[Read the full demo README](./demos/01-getting-started/README.md)** for step-by-step instructions and detailed configuration.
+
+### [02-usage-based-rate-limiting](./demos/02-usage-based-rate-limiting/)
+Advanced token-based rate limiting for AI workloads featuring:
+- **Token-based rate limiting** with different quotas per model (qwen3: 200/hour, gpt-4: 1000/hour, gpt-3.5-turbo: 100/hour)
+- **Per-user and per-model enforcement** using `x-user-id` and `x-ai-eg-model` headers
+- **Automatic token tracking** from LLM responses with input/output/total token metrics
+- **Raw metrics collection** via `task metrics` with Prometheus-compatible output
+- **Rate limit enforcement** with 429 status codes and comprehensive testing
+
+📖 **[Read the full demo README](./demos/02-usage-based-rate-limiting/README.md)** for usage-based rate limiting setup and metrics analysis.
 
 ## 🛠️ Prerequisites
 

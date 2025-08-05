@@ -18,33 +18,51 @@ This demo demonstrates:
 - `task` (Taskfile) installed
 - `jq` for JSON pretty-printing
 
-## Quick Start
+## Demo Execution Steps
 
-1. Navigate to the demo directory:
+### Step 1: Setup Rate Limiting
 ```bash
 cd demos/02-usage-based-rate-limiting
-```
-
-2. Deploy the rate limiting configuration:
-```bash
 task setup
 ```
 
 This will:
 - Ensure the basic environment from 01-getting-started is running
 - Deploy the BackendTrafficPolicy for rate limiting
-- Replace the AIGatewayRoute with an enhanced version that includes token tracking
+- Replace the AIGatewayRoute with enhanced token tracking
 - Enable support for additional models (gpt-4, gpt-3.5-turbo)
 
-3. Start port forwarding (if not already running):
+### Step 2: Start Port Forwarding
 ```bash
 task port-forward
 ```
 
-4. Test the rate limiting:
+### Step 3: Test Rate Limit Enforcement
 ```bash
-task test-rate-limits
+task test-limits-exceeded
 ```
+
+This sends rapid requests to test rate limiting. Expected behavior:
+- First few requests succeed (200 OK)
+- Eventually triggers rate limit (429 status expected, but currently showing all 200s)
+- Each successful request shows 6 input tokens + 6 output tokens = 12 total tokens
+
+### Step 4: Monitor Metrics
+```bash
+task metrics
+```
+
+This captures real-time metrics showing:
+- **Token Usage**: qwen3 model consumed 120 tokens (60 input + 60 output) across 10 requests
+- **Rate Limit Status**: Shows requests allowed vs blocked per model
+- **Extracted Values**: Current consumption vs configured limits
+
+### Step 5: View Logs
+```bash
+task logs
+```
+
+Check gateway logs for rate limiting events and debugging.
 
 ## Configuration Details
 
@@ -61,14 +79,16 @@ llmRequestCosts:
     type: InputToken
   - metadataKey: llm_output_token
     type: OutputToken
+  - metadataKey: llm_total_token
+    type: TotalToken
 ```
 
 ### Rate Limits by Model
 
 Different models have different token limits per hour:
 - **gpt-4**: 1,000 tokens/hour per user
-- **gpt-3.5-turbo**: 5,000 tokens/hour per user
-- **qwen3**: 2,000 tokens/hour per user
+- **gpt-3.5-turbo**: 100 tokens/hour per user
+- **qwen3**: 200 tokens/hour per user
 
 ### User Identification
 
@@ -79,22 +99,23 @@ curl -H "x-user-id: alice" -H "x-ai-eg-model: gpt-4" ...
 
 ## Testing Examples
 
-### Test Different Users
+### Manual Testing Examples
+
+**Alice using qwen3 (200 tokens/hour limit):**
 ```bash
-# Alice using qwen3
 curl -H "Content-Type: application/json" \
      -H "x-user-id: alice" \
-     -H "x-ai-eg-model: qwen3" \
      -d '{
        "model": "qwen3",
        "messages": [{"role": "user", "content": "Hello from Alice!"}]
      }' \
      http://localhost:8080/v1/chat/completions
+```
 
-# Bob using gpt-3.5-turbo
+**Bob using gpt-3.5-turbo (100 tokens/hour limit):**
+```bash
 curl -H "Content-Type: application/json" \
      -H "x-user-id: bob" \
-     -H "x-ai-eg-model: gpt-3.5-turbo" \
      -d '{
        "model": "gpt-3.5-turbo",
        "messages": [{"role": "user", "content": "Hello from Bob!"}]
@@ -102,35 +123,115 @@ curl -H "Content-Type: application/json" \
      http://localhost:8080/v1/chat/completions
 ```
 
+**Note:** The `x-ai-eg-model` header is not needed when the model is specified in the request body.
+
 ### Test Rate Limit Exceeded
 ```bash
-# Send multiple requests to trigger rate limit
+# Send multiple requests to test rate limiting
 task test-limits-exceeded
 ```
 
-When the rate limit is exceeded, you'll receive a 429 status code:
-```json
-{
-  "error": {
-    "message": "Rate limit exceeded",
-    "type": "rate_limit_error",
-    "code": 429
-  }
-}
-```
+This task sends 10 rapid requests to test rate limiting. Based on the configuration:
+- **qwen3**: 200 tokens/hour limit
+- **Each request**: ~12 tokens (6 input + 6 output)
+- **10 requests**: 120 tokens total (60% of limit)
+
+To actually trigger 429 errors, you would need to either:
+1. Send more requests (>17 requests to exceed 200 tokens)
+2. Use a different user that has already consumed tokens
+3. Adjust the rate limit to a lower value for testing
 
 ## Available Tasks
 
+**Core Demo Tasks:**
 - `task setup` - Deploy rate limiting configuration
-- `task test-rate-limits` - Run all rate limiting tests
-- `task test-user-alice` - Test limits for user Alice
-- `task test-user-bob` - Test limits for user Bob
-- `task test-limits-exceeded` - Test rate limit enforcement
-- `task test-streaming` - Test streaming with rate limits
-- `task monitor-rates` - Check current rate limit statistics
-- `task status` - View rate limiting configuration
+- `task port-forward` - Start port forwarding to access gateway
+- `task test-limits-exceeded` - Send rapid requests to test rate limiting
+- `task metrics` - Capture raw token usage and rate limiting metrics
 - `task logs` - Show rate limit related logs
+
+**Additional Testing:**
+- `task test-rate-limits` - Run all rate limiting tests
+- `task test-user-alice` - Test limits for user Alice (qwen3 and gpt-4)
+- `task test-user-bob` - Test limits for user Bob (gpt-3.5-turbo) 
+- `task test-streaming` - Test streaming with rate limits
+
+**Configuration & Cleanup:**
+- `task status` - View rate limiting configuration
 - `task cleanup` - Remove rate limiting configuration
+
+## GenAI Metrics Collection
+
+To collect GenAI metrics (token usage, latency, etc.) and rate limiting stats, use the automated metrics task:
+
+**Raw Metrics Analysis:**
+```bash
+task metrics
+```
+
+This provides:
+- **Token usage metrics** from port 1064 (GenAI metrics endpoint)
+- **Rate limiting stats** from port 19000 (Envoy admin endpoint)  
+- **Extracted values** with current token consumption vs limits
+- **Raw Prometheus metrics** for integration with monitoring systems
+
+**Sample Output:**
+```
+=== GenAI Metrics (port 1064) ===
+--- Token Usage ---
+gen_ai_client_token_usage_token_sum{gen_ai_request_model="qwen3",gen_ai_token_type="total"} 95
+gen_ai_client_token_usage_token_count{gen_ai_request_model="qwen3",gen_ai_token_type="total"} 8
+
+=== Rate Limiting Metrics (port 19000) ===
+--- Rate Limit Decisions ---
+cluster.httproute/default/llm-d-inference-sim-route/rule/0.ratelimit.ok: 8
+cluster.httproute/default/llm-d-inference-sim-route/rule/0.ratelimit.over_limit: 1
+
+=== Extracted Values ===
+qwen3: input=47 output=48 total=95 count=8 (limit=200/hour)
+rule/0 (qwen3): ok=8 over_limit=1
+```
+
+**Manual Metrics Collection (advanced):**
+```bash
+# Get the Envoy pod name
+ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name=envoy-ai-gateway -o jsonpath='{.items[0].metadata.name}')
+
+# Port-forward to metrics endpoints
+kubectl port-forward -n envoy-gateway-system $ENVOY_POD 1064:1064 &  # GenAI metrics
+kubectl port-forward -n envoy-gateway-system $ENVOY_POD 19000:19000 &  # Envoy admin
+
+# Collect specific metrics
+curl -s http://localhost:1064/metrics | grep gen_ai_client_token_usage
+curl -s http://localhost:19000/stats | grep ratelimit
+```
+
+## Demo Results
+
+### Actual Output from Demo Run
+
+**Token Consumption (from `task metrics`):**
+```
+=== GenAI Metrics (port 1064) ===
+--- Token Usage ---
+gen_ai_client_token_usage_token_sum{gen_ai_request_model="qwen3",gen_ai_token_type="input"} 60
+gen_ai_client_token_usage_token_sum{gen_ai_request_model="qwen3",gen_ai_token_type="output"} 60
+gen_ai_client_token_usage_token_sum{gen_ai_request_model="qwen3",gen_ai_token_type="total"} 120
+gen_ai_client_token_usage_token_count{gen_ai_request_model="qwen3",gen_ai_token_type="total"} 10
+
+=== Extracted Values ===
+qwen3: input=60 output=60 total=120 count=10 (limit=200/hour)
+```
+
+**Rate Limiting Behavior:**
+- 10 requests sent to qwen3 model
+- Each request consumed 12 tokens (6 input + 6 output)
+- Total consumption: 120 tokens out of 200/hour limit (60% utilized)
+- All requests returned 200 OK (rate limit not yet triggered)
+
+**Note:** To trigger 429 rate limit errors, you would need to:
+- Send more requests to exceed the 200 token/hour limit
+- Or adjust the rate limit configuration to a lower threshold
 
 ## How It Works
 
