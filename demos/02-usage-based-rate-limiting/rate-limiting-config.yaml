@@ -34,9 +34,17 @@ spec:
                   value: gpt-3.5-turbo
                   type: Exact
           limit:
-            requests: 5000
+            requests: 100
             unit: Hour
-        # Rate limit for qwen3 model - 2000 tokens per hour per user
+          cost:
+            request:
+              from: Number
+              number: 0
+            response:
+              from: Metadata
+              metadata:
+                namespace: io.envoy.ai_gateway
+                key: llm_total_token
         - clientSelectors:
             - headers:
                 - name: x-user-id
@@ -45,5 +53,16 @@ spec:
                   value: qwen3
                   type: Exact
           limit:
-            requests: 2000
+            requests: 200
             unit: Hour
+          cost:
+            request:
+              from: Number
+              number: 0
+            response:
+              from: Metadata
+              metadata:
+                namespace: io.envoy.ai_gateway
+                key: llm_total_token
+
+
