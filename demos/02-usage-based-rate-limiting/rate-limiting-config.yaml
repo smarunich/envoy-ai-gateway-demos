@@ -53,7 +53,7 @@ spec:
                   value: qwen3
                   type: Exact
           limit:
-            requests: 200
+            requests: 50
             unit: Hour
           cost:
             request:

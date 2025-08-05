@@ -88,7 +88,7 @@ llmRequestCosts:
 Different models have different token limits per hour:
 - **gpt-4**: 1,000 tokens/hour per user
 - **gpt-3.5-turbo**: 100 tokens/hour per user
-- **qwen3**: 200 tokens/hour per user
+- **qwen3**: 50 tokens/hour per user
 
 ### User Identification
 
@@ -101,7 +101,7 @@ curl -H "x-user-id: alice" -H "x-ai-eg-model: gpt-4" ...
 
 ### Manual Testing Examples
 
-**Alice using qwen3 (200 tokens/hour limit):**
+**Alice using qwen3 (50 tokens/hour limit):**
 ```bash
 curl -H "Content-Type: application/json" \
      -H "x-user-id: alice" \
@@ -132,12 +132,12 @@ task test-limits-exceeded
 ```
 
 This task sends 10 rapid requests to test rate limiting. Based on the configuration:
-- **qwen3**: 200 tokens/hour limit
+- **qwen3**: 50 tokens/hour limit
 - **Each request**: ~12 tokens (6 input + 6 output)
-- **10 requests**: 120 tokens total (60% of limit)
+- **10 requests**: 120 tokens total (240% of limit)
 
 To actually trigger 429 errors, you would need to either:
-1. Send more requests (>17 requests to exceed 200 tokens)
+1. Send more requests (>5 requests to exceed 50 tokens)
 2. Use a different user that has already consumed tokens
 3. Adjust the rate limit to a lower value for testing
 
@@ -188,7 +188,7 @@ cluster.httproute/default/llm-d-inference-sim-route/rule/0.ratelimit.ok: 8
 cluster.httproute/default/llm-d-inference-sim-route/rule/0.ratelimit.over_limit: 1
 
 === Extracted Values ===
-qwen3: input=47 output=48 total=95 count=8 (limit=200/hour)
+qwen3: input=47 output=48 total=95 count=8 (limit=50/hour)
 rule/0 (qwen3): ok=8 over_limit=1
 ```
 
@@ -220,17 +220,17 @@ gen_ai_client_token_usage_token_sum{gen_ai_request_model="qwen3",gen_ai_token_ty
 gen_ai_client_token_usage_token_count{gen_ai_request_model="qwen3",gen_ai_token_type="total"} 10
 
 === Extracted Values ===
-qwen3: input=60 output=60 total=120 count=10 (limit=200/hour)
+qwen3: input=60 output=60 total=120 count=10 (limit=50/hour)
 ```
 
 **Rate Limiting Behavior:**
 - 10 requests sent to qwen3 model
 - Each request consumed 12 tokens (6 input + 6 output)
-- Total consumption: 120 tokens out of 200/hour limit (60% utilized)
+- Total consumption: 120 tokens out of 50/hour limit (60% utilized)
 - All requests returned 200 OK (rate limit not yet triggered)
 
 **Note:** To trigger 429 rate limit errors, you would need to:
-- Send more requests to exceed the 200 token/hour limit
+- Send more requests to exceed the 50 token/hour limit
 - Or adjust the rate limit configuration to a lower threshold
 
 ## How It Works

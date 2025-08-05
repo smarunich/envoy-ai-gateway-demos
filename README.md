@@ -55,7 +55,7 @@ A comprehensive introduction to Envoy AI Gateway featuring:
 
 ### [02-usage-based-rate-limiting](./demos/02-usage-based-rate-limiting/)
 Advanced token-based rate limiting for AI workloads featuring:
-- **Token-based rate limiting** with different quotas per model (qwen3: 200/hour, gpt-4: 1000/hour, gpt-3.5-turbo: 100/hour)
+- **Token-based rate limiting** with different quotas per model (qwen3: 50/hour, gpt-4: 1000/hour, gpt-3.5-turbo: 100/hour)
 - **Per-user and per-model enforcement** using `x-user-id` and `x-ai-eg-model` headers
 - **Automatic token tracking** from LLM responses with input/output/total token metrics
 - **Raw metrics collection** via `task metrics` with Prometheus-compatible output

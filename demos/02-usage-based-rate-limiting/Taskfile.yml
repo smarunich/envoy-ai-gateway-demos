@@ -207,7 +207,7 @@ tasks:
         RULE1_OK=$(echo "$RATELIMIT_STATS" | grep 'rule/1.ratelimit.ok:' | grep -o '[0-9]\+$' || echo "0")
         RULE2_OK=$(echo "$RATELIMIT_STATS" | grep 'rule/2.ratelimit.ok:' | grep -o '[0-9]\+$' || echo "0")
         
-        echo "qwen3: input=$QWEN3_INPUT output=$QWEN3_OUTPUT total=$QWEN3_TOTAL count=$QWEN3_COUNT (limit=200/hour)"
+        echo "qwen3: input=$QWEN3_INPUT output=$QWEN3_OUTPUT total=$QWEN3_TOTAL count=$QWEN3_COUNT (limit=50/hour)"
         echo "gpt-4: total=$GPT4_TOTAL count=$GPT4_COUNT (limit=1000/hour)"
         echo "gpt-3.5-turbo: total=$GPT35_TOTAL count=$GPT35_COUNT (limit=100/hour)"
         echo "rule/0 (qwen3): ok=$RULE0_OK over_limit=$RULE0_OVER"
