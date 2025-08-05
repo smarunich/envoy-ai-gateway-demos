@@ -54,35 +54,26 @@ tasks:
       - task: test-limits-exceeded
 
   test-user-alice:
-    desc: "Test rate limits for user Alice with different models"
+    desc: "Test rate limits for user Alice with qwen3 model"
     cmds:
       - |
         echo "=== Testing rate limits for Alice ==="
         echo "1. Testing qwen3 model (limit: 2000 tokens/hour)..."
-        curl -s -H "Content-Type: application/json" \
+        curl -v -s -H "Content-Type: application/json" \
           -H "x-user-id: alice" \
           -d '{
             "model": "qwen3",
             "messages": [{"role": "user", "content": "Hello from Alice using qwen3!"}]
           }' \
           http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq .
-        
-        echo -e "\n2. Testing gpt-4 model (limit: 1000 tokens/hour)..."
-        curl -s -H "Content-Type: application/json" \
-          -H "x-user-id: alice" \
-          -d '{
-            "model": "gpt-4",
-            "messages": [{"role": "user", "content": "Hello from Alice using gpt-4!"}]
-          }' \
-          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq .
 
   test-user-bob:
-    desc: "Test rate limits for user Bob"
+    desc: "Test rate limits for user Bob with gpt-3.5-turbo model"
     cmds:
       - |
         echo "=== Testing rate limits for Bob ==="
         echo "Testing gpt-3.5-turbo model (limit: 100 tokens/hour)..."
-        curl -s -H "Content-Type: application/json" \
+        curl -v -s -H "Content-Type: application/json" \
           -H "x-user-id: bob" \
           -d '{
             "model": "gpt-3.5-turbo",
@@ -102,7 +93,6 @@ tasks:
           echo -e "\nRequest $i:"
           RESPONSE=$(curl -v -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
             -H "x-user-id: test-limit" \
-            -H "x-ai-eg-model: qwen3" \
             -d "{
               \"model\": \"qwen3\",
               \"messages\": [{\"role\": \"user\", \"content\": \"Request $i to test rate limiting\"}]
@@ -137,7 +127,6 @@ tasks:
         echo "Testing streaming with rate limits..."
         curl -s -H "Content-Type: application/json" \
           -H "x-user-id: alice" \
-          -H "x-ai-eg-model: qwen3" \
           -d '{
             "model": "qwen3",
             "messages": [{"role": "user", "content": "Stream this response with rate limiting"}],
