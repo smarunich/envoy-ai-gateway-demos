@@ -216,6 +216,16 @@ tasks:
         pkill -f "kubectl port-forward.*:1064" 2>/dev/null || true
         pkill -f "kubectl port-forward.*:19000" 2>/dev/null || true
 
+  show-config:
+    desc: "Show applied configuration using kubectl"
+    cmds:
+      - echo -e "\n=== AI Gateway Route Configuration ==="
+      - kubectl get aigatewayroute -n {{.NAMESPACE}} -o yaml
+      - echo -e "\n=== AI Service Backend Configuration ==="
+      - kubectl get aiservicebackend -n {{.NAMESPACE}} -o yaml
+      - echo -e "\n=== Backend Traffic Policy Configuration ==="
+      - kubectl get backendtrafficpolicy -n {{.NAMESPACE}} -o yaml
+
   cleanup:
     desc: "Clean up rate limiting resources"
     cmds:

@@ -202,6 +202,16 @@ tasks:
       - kubectl rollout restart deployment/{{.BACKEND_NAME}} -n {{.NAMESPACE}}
       - task: wait-ready
 
+  show-config:
+    desc: "Show applied configuration using kubectl"
+    cmds:
+      - echo "=== Gateway Configuration ==="
+      - kubectl get gateway {{.GATEWAY_NAME}} -n {{.NAMESPACE}} -o yaml
+      - echo -e "\n=== AI Gateway Route Configuration ==="
+      - kubectl get aigatewayroute -n {{.NAMESPACE}} -o yaml
+      - echo -e "\n=== AI Service Backend Configuration ==="
+      - kubectl get aiservicebackend -n {{.NAMESPACE}} -o yaml
+
   footer:
     desc: "Show footer"
     cmds:
