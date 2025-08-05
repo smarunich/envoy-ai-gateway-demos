@@ -1,0 +1,68 @@
+---
+# BackendTrafficPolicy for usage-based rate limiting
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: usage-based-rate-limit
+  namespace: default
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: envoy-ai-gateway
+  rateLimit:
+    type: Global
+    global:
+      rules:
+        # Rate limit for gpt-4 model - 1000 tokens per hour per user
+        - clientSelectors:
+            - headers:
+                - name: x-user-id
+                  type: Distinct
+                - name: x-ai-eg-model
+                  value: gpt-4
+                  type: Exact
+          limit:
+            requests: 1000
+            unit: Hour
+        # Rate limit for gpt-3.5-turbo model - 5000 tokens per hour per user
+        - clientSelectors:
+            - headers:
+                - name: x-user-id
+                  type: Distinct
+                - name: x-ai-eg-model
+                  value: gpt-3.5-turbo
+                  type: Exact
+          limit:
+            requests: 100
+            unit: Hour
+          cost:
+            request:
+              from: Number
+              number: 0
+            response:
+              from: Metadata
+              metadata:
+                namespace: io.envoy.ai_gateway
+                key: llm_total_token
+        - clientSelectors:
+            - headers:
+                - name: x-user-id
+                  type: Distinct
+                - name: x-ai-eg-model
+                  value: qwen3
+                  type: Exact
+          limit:
+            requests: 50
+            unit: Hour
+          cost:
+            request:
+              from: Number
+              number: 0
+            response:
+              from: Metadata
+              metadata:
+                namespace: io.envoy.ai_gateway
+                key: llm_total_token
+
+

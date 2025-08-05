@@ -1,0 +1,155 @@
+name: Demo 02 - Usage-Based Rate Limiting
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'demos/02-usage-based-rate-limiting/**'
+      - '.github/workflows/demo-02-usage-based-rate-limiting.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'demos/02-usage-based-rate-limiting/**'
+      - '.github/workflows/demo-02-usage-based-rate-limiting.yml'
+  workflow_dispatch:
+
+jobs:
+  demo-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./demos/02-usage-based-rate-limiting
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.x
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup prerequisites
+      run: |
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install kind
+        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/
+        
+        # Install helm
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        
+        # Install jq (should already be available)
+        sudo apt-get update
+        sudo apt-get install -y jq bc
+        
+        # Verify installations
+        echo "Tool versions:"
+        kubectl version --client
+        kind version
+        helm version
+        jq --version
+        bc --version
+        docker --version
+        task --version
+
+    - name: Free up disk space
+      run: |
+        docker system prune -af
+        
+    - name: Clean up existing Kind resources
+      run: |
+        echo "🧹 Cleaning up any existing Kind clusters and containers..."
+        # Delete any existing kind clusters
+        kind delete clusters --all || true
+
+    - name: Deploy demo components
+      run: |
+        echo "🚀 Setting up usage-based rate limiting demo..."
+        task setup
+
+    - name: Start port forwarding in background
+      run: |
+        echo "🔌 Starting port forwarding..."
+        task port-forward
+
+    - name: Test user Alice rate limits
+      run: |
+        echo "🧪 Testing rate limits for user Alice..."
+        sleep 5  # Wait for port forwarding to stabilize
+        task test-user-alice
+
+    - name: Test user Bob rate limits
+      run: |
+        echo "🧪 Testing rate limits for user Bob..."
+        task test-user-bob
+
+    - name: Test rate limit enforcement
+      run: |
+        echo "🧪 Testing rate limit exceeded scenario..."
+        task test-limits-exceeded
+
+    - name: Test streaming with rate limits
+      run: |
+        echo "🧪 Testing streaming with rate limits..."
+        task test-streaming
+
+    - name: Capture metrics
+      run: |
+        echo "📊 Capturing usage-based rate limiting metrics..."
+        task metrics || true
+
+    - name: Run all rate limiting tests
+      run: |
+        echo "🧪 Running comprehensive rate limiting tests..."
+        task test-rate-limits
+
+    - name: Check rate limiting status
+      run: |
+        echo "📋 Checking rate limiting configuration..."
+        task status
+
+    - name: Show component logs
+      if: always()
+      run: |
+        echo "📋 Showing component logs..."
+        task logs || true
+
+    - name: Show failure diagnostics
+      if: failure()
+      run: |
+        echo "🔍 Failure diagnostics..."
+        echo "=== Pods Status ==="
+        kubectl get pods --all-namespaces || true
+        echo "=== BackendTrafficPolicy Status ==="
+        kubectl get backendtrafficpolicy --all-namespaces || true
+        echo "=== AIGatewayRoute Status ==="
+        kubectl get aigatewayroute --all-namespaces || true
+        echo "=== Gateway Status ==="
+        kubectl get gateways --all-namespaces || true
+        echo "=== Events ==="
+        kubectl get events --all-namespaces --sort-by='.lastTimestamp' || true
+        echo "=== Envoy Gateway Logs ==="
+        kubectl logs -n envoy-gateway-system -l control-plane=envoy-gateway --tail=50 || true
+        echo "=== Demo Component Logs ==="
+        kubectl logs -l app=llm-d-inference-sim --tail=50 || true
+        echo "=== Rate Limiter Logs ==="
+        kubectl logs -n envoy-gateway-system -l app=envoy-ratelimit --tail=50 || true
+
+    - name: Cleanup
+      if: always()
+      run: |
+        echo "🧹 Cleanup..."
+        task cleanup || true
+        cd ../../
+        task cleanup || true
+        # Kill any remaining port forwarding processes
+        pkill -f "kubectl port-forward" || true
+        # Clean up kind cluster
+        kind delete clusters --all || true

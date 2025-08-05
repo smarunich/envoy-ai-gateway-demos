@@ -1,0 +1,227 @@
+version: '3'
+
+vars:
+  NAMESPACE: default
+  GATEWAY_NAME: envoy-ai-gateway
+  BACKEND_NAME: llm-d-inference-sim
+  PORT_FORWARD: 8080
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list --sort=none
+
+  prerequisites:
+    desc: "Ensure 01-getting-started is deployed"
+    dir: ../01-getting-started
+    cmds:
+      - task setup
+
+  setup:
+    desc: "Setup usage-based rate limiting on top of basic environment"
+    cmds:
+      - task: prerequisites
+      - task: deploy-rate-limiting
+      - echo "Usage-based rate limiting setup complete!"
+      - echo "Run 'task test-rate-limits' to test the rate limiting"
+
+  deploy-rate-limiting:
+    desc: "Deploy rate limiting configuration"
+    cmds:
+      - kubectl apply -f rate-limiting-config.yaml
+      - echo "BackendTrafficPolicy deployed"
+      - echo "Updating AIGatewayRoute with token tracking configuration..."
+      - kubectl apply -f aigatewayroute-with-rate-limiting.yaml
+      - echo "AIGatewayRoute updated successfully"
+      - sleep 5
+
+  port-forward:
+    desc: "Start port forwarding (delegates to 01-getting-started)"
+    dir: ../01-getting-started
+    cmds:
+      - task port-forward
+
+  test-rate-limits:
+    desc: "Test usage-based rate limiting"
+    cmds:
+      - task: test-user-alice
+      - task: test-user-bob
+      - task: test-limits-exceeded
+
+  test-user-alice:
+    desc: "Test rate limits for user Alice with different models"
+    cmds:
+      - |
+        echo "=== Testing rate limits for Alice ==="
+        echo "1. Testing qwen3 model (limit: 2000 tokens/hour)..."
+        curl -s -H "Content-Type: application/json" \
+          -H "x-user-id: alice" \
+          -d '{
+            "model": "qwen3",
+            "messages": [{"role": "user", "content": "Hello from Alice using qwen3!"}]
+          }' \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq .
+        
+        echo -e "\n2. Testing gpt-4 model (limit: 1000 tokens/hour)..."
+        curl -s -H "Content-Type: application/json" \
+          -H "x-user-id: alice" \
+          -d '{
+            "model": "gpt-4",
+            "messages": [{"role": "user", "content": "Hello from Alice using gpt-4!"}]
+          }' \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq .
+
+  test-user-bob:
+    desc: "Test rate limits for user Bob"
+    cmds:
+      - |
+        echo "=== Testing rate limits for Bob ==="
+        echo "Testing gpt-3.5-turbo model (limit: 100 tokens/hour)..."
+        curl -s -H "Content-Type: application/json" \
+          -H "x-user-id: bob" \
+          -d '{
+            "model": "gpt-3.5-turbo",
+            "messages": [{"role": "user", "content": "Hello from Bob using gpt-3.5-turbo!"}]
+          }' \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq .
+
+  test-limits-exceeded:
+    desc: "Test what happens when rate limits are exceeded"
+    cmds:
+      - |
+        echo "=== Testing rate limit exceeded scenario ==="
+        echo "Sending multiple requests to exceed rate limit..."
+        
+        # Send 10 requests rapidly to trigger rate limit
+        for i in {1..10}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -v -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -H "x-user-id: test-limit" \
+            -H "x-ai-eg-model: qwen3" \
+            -d "{
+              \"model\": \"qwen3\",
+              \"messages\": [{\"role\": \"user\", \"content\": \"Request $i to test rate limiting\"}]
+            }" \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          HEADERS=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          if [ "$HTTP_STATUS" = "429" ]; then
+            echo "✅ Rate limit enforced! Got 429 status"
+            echo "Rate limit headers:"
+            echo "$HEADERS" | grep -i "x-envoy-ratelimited" || true
+            echo "$HEADERS" | grep -i "x-ratelimit-limit" || true
+            echo "$HEADERS" | grep -i "x-ratelimit-remaining" || true
+            echo "$HEADERS" | grep -i "x-ratelimit-reset" || true
+            break
+          else
+            echo "Response received (Status: $HTTP_STATUS)"
+            # Check if we're getting close to the limit
+            REMAINING=$(echo "$HEADERS" | grep -i "x-ratelimit-remaining" | cut -d: -f2 | xargs)
+            if [ ! -z "$REMAINING" ]; then
+              echo "  Remaining requests: $REMAINING"
+            fi
+          fi
+        done
+
+  test-streaming:
+    desc: "Test streaming with rate limits"
+    cmds:
+      - |
+        echo "Testing streaming with rate limits..."
+        curl -s -H "Content-Type: application/json" \
+          -H "x-user-id: alice" \
+          -H "x-ai-eg-model: qwen3" \
+          -d '{
+            "model": "qwen3",
+            "messages": [{"role": "user", "content": "Stream this response with rate limiting"}],
+            "stream": true
+          }' \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions
+
+  logs:
+    desc: "Show logs related to rate limiting"
+    cmds:
+      - |
+        echo "=== Gateway Logs (rate limit related) ==="
+        ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
+        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=20 | grep -i "rate" || echo "No rate limit logs found"
+
+  status:
+    desc: "Check status of rate limiting configuration"
+    cmds:
+      - echo "=== BackendTrafficPolicy ==="
+      - kubectl get backendtrafficpolicy -n {{.NAMESPACE}}
+      - echo -e "\n=== BackendTrafficPolicy Details ==="
+      - kubectl describe backendtrafficpolicy usage-based-rate-limit -n {{.NAMESPACE}}
+
+  metrics:
+    desc: "Raw metrics capture for usage-based rate limiting analysis"
+    cmds:
+      - |
+        ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
+        echo "Envoy pod: $ENVOY_POD"
+        
+        kubectl port-forward -n envoy-gateway-system $ENVOY_POD 1064:1064 &
+        PF_1064_PID=$!
+        kubectl port-forward -n envoy-gateway-system $ENVOY_POD 19000:19000 &
+        PF_19000_PID=$!
+        
+        sleep 3
+        
+        echo "=== GenAI Metrics (port 1064) ==="
+        GENAI_METRICS=$(curl -s localhost:1064/metrics)
+        
+        echo "--- Token Usage ---"
+        echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_sum\|gen_ai_client_token_usage_token_count'
+        
+        echo -e "\n--- Request Duration ---"
+        echo "$GENAI_METRICS" | grep 'gen_ai_server_request_duration_seconds_sum\|gen_ai_server_request_duration_seconds_count'
+        
+        echo -e "\n=== Rate Limiting Metrics (port 19000) ==="
+        RATELIMIT_STATS=$(curl -s localhost:19000/stats)
+        
+        echo "--- Rate Limit Decisions ---"
+        echo "$RATELIMIT_STATS" | grep -E 'ratelimit\.(ok|over_limit):'
+        
+        echo -e "\n--- Rate Limit Service ---"  
+        echo "$RATELIMIT_STATS" | grep -E 'ratelimit_cluster\.(upstream_rq_200|upstream_cx_active|upstream_rq_completed):'
+        
+        echo -e "\n=== Extracted Values ==="
+        
+        QWEN3_INPUT=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_sum.*qwen3.*input' | grep -o '[0-9]\+$' || echo "0")
+        QWEN3_OUTPUT=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_sum.*qwen3.*output' | grep -o '[0-9]\+$' || echo "0")
+        QWEN3_TOTAL=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_sum.*qwen3.*total' | grep -o '[0-9]\+$' || echo "0")
+        QWEN3_COUNT=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_count.*qwen3.*total' | grep -o '[0-9]\+$' || echo "0")
+        
+        GPT4_TOTAL=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_sum.*gpt-4.*total' | grep -o '[0-9]\+$' || echo "0")
+        GPT4_COUNT=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_count.*gpt-4.*total' | grep -o '[0-9]\+$' || echo "0")
+        
+        GPT35_TOTAL=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_sum.*gpt-3.5-turbo.*total' | grep -o '[0-9]\+$' || echo "0")
+        GPT35_COUNT=$(echo "$GENAI_METRICS" | grep 'gen_ai_client_token_usage_token_count.*gpt-3.5-turbo.*total' | grep -o '[0-9]\+$' || echo "0")
+        
+        RULE0_OK=$(echo "$RATELIMIT_STATS" | grep 'rule/0.ratelimit.ok:' | grep -o '[0-9]\+$' || echo "0")
+        RULE0_OVER=$(echo "$RATELIMIT_STATS" | grep 'rule/0.ratelimit.over_limit:' | grep -o '[0-9]\+$' || echo "0")
+        RULE1_OK=$(echo "$RATELIMIT_STATS" | grep 'rule/1.ratelimit.ok:' | grep -o '[0-9]\+$' || echo "0")
+        RULE2_OK=$(echo "$RATELIMIT_STATS" | grep 'rule/2.ratelimit.ok:' | grep -o '[0-9]\+$' || echo "0")
+        
+        echo "qwen3: input=$QWEN3_INPUT output=$QWEN3_OUTPUT total=$QWEN3_TOTAL count=$QWEN3_COUNT (limit=50/hour)"
+        echo "gpt-4: total=$GPT4_TOTAL count=$GPT4_COUNT (limit=1000/hour)"
+        echo "gpt-3.5-turbo: total=$GPT35_TOTAL count=$GPT35_COUNT (limit=100/hour)"
+        echo "rule/0 (qwen3): ok=$RULE0_OK over_limit=$RULE0_OVER"
+        echo "rule/1 (gpt-4): ok=$RULE1_OK over_limit=0"
+        echo "rule/2 (gpt-3.5-turbo): ok=$RULE2_OK over_limit=0"
+        
+        pkill -f "kubectl port-forward.*:1064" 2>/dev/null || true
+        pkill -f "kubectl port-forward.*:19000" 2>/dev/null || true
+
+  cleanup:
+    desc: "Clean up rate limiting resources"
+    cmds:
+      - kubectl delete -f rate-limiting-config.yaml --ignore-not-found=true
+      - echo "BackendTrafficPolicy removed"
+      - echo "Reverting AIGatewayRoute to original state..."
+      - kubectl apply -f ../01-getting-started/envoy-ai-gateway-aigatewayroute.yaml
+      - echo "AIGatewayRoute reverted to demo 01 configuration"

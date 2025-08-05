@@ -1,0 +1,47 @@
+---
+# AIGatewayRoute with token tracking configuration
+# This replaces the original route from demo 01 by adding token tracking
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIGatewayRoute
+metadata:
+  name: llm-d-inference-sim-route
+  namespace: default
+spec:
+  schema:
+    name: OpenAI
+  parentRefs:
+    - name: envoy-ai-gateway
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  llmRequestCosts:
+    - metadataKey: llm_input_token
+      type: InputToken
+    - metadataKey: llm_output_token
+      type: OutputToken
+    - metadataKey: llm_total_token
+      type: TotalToken
+  rules:
+    # Route for qwen3 model (original from demo 01)
+    - matches:
+        - headers:
+            - type: Exact
+              name: x-ai-eg-model
+              value: qwen3
+      backendRefs:
+        - name: llm-d-inference-sim-aiservicebackend
+    # Route for gpt-4 model (simulated)
+    - matches:
+        - headers:
+            - type: Exact
+              name: x-ai-eg-model
+              value: gpt-4
+      backendRefs:
+        - name: llm-d-inference-sim-aiservicebackend
+    # Route for gpt-3.5-turbo model (simulated)
+    - matches:
+        - headers:
+            - type: Exact
+              name: x-ai-eg-model
+              value: gpt-3.5-turbo
+      backendRefs:
+        - name: llm-d-inference-sim-aiservicebackend
