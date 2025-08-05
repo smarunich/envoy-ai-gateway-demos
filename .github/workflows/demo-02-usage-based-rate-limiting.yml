@@ -103,7 +103,7 @@ jobs:
     - name: Capture metrics
       run: |
         echo "📊 Capturing usage-based rate limiting metrics..."
-        task metrics
+        task metrics || true
 
     - name: Run all rate limiting tests
       run: |
