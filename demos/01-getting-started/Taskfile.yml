@@ -26,6 +26,10 @@ tasks:
       - task: deploy
       - task: wait-ready
       - echo "Setup complete! Run 'task test' to test the gateway"
+    generates:
+      - .task/setup.done
+    status:
+      - test -f .task/setup.done
 
   deploy:
     desc: "Deploy the Envoy AI Gateway with LLM-D Inference Simulator"

@@ -25,6 +25,10 @@ tasks:
       - task: deploy-rate-limiting
       - echo "Usage-based rate limiting setup complete!"
       - echo "Run 'task test-rate-limits' to test the rate limiting"
+    generates:
+      - .task/setup.done
+    status:
+      - test -f .task/setup.done
 
   deploy-rate-limiting:
     desc: "Deploy rate limiting configuration"
