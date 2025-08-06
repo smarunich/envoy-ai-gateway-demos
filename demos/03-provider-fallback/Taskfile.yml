@@ -1,0 +1,347 @@
+version: '3'
+
+vars:
+  NAMESPACE: default
+  GATEWAY_NAME: envoy-ai-gateway
+  PRIMARY_BACKEND: llm-primary
+  FALLBACK_BACKEND: llm-fallback
+  MODEL: gpt-4
+  PORT_FORWARD: 8080
+
+tasks:
+  default:
+    desc: "Show available tasks"
+    cmds:
+      - task --list --sort=none
+
+  prerequisites:
+    desc: "Ensure base environment is ready"
+    dir: ../01-getting-started
+    cmds:
+      - task prerequisites
+
+  setup:
+    desc: "Complete setup of the provider fallback demo"
+    cmds:
+      - task: prerequisites
+      - task: deploy
+      - task: wait-ready
+      - echo "Provider fallback setup complete!"
+      - echo "Run 'task test' to test the fallback behavior"
+    generates:
+      - .task/setup.done
+    status:
+      - test -f .task/setup.done
+
+  deploy:
+    desc: "Deploy primary and fallback providers with gateway configuration"
+    cmds:
+      - kubectl apply -f primary-backend.yaml
+      - kubectl apply -f fallback-backend.yaml
+      - kubectl apply -f aigatewayroute-with-fallback.yaml
+      - kubectl apply -f retry-policy.yaml
+      - echo "Deployment initiated..."
+
+  wait-ready:
+    desc: "Wait for all components to be ready"
+    cmds:
+      - echo "Waiting for Primary Provider to be ready..."
+      - kubectl wait --for=condition=ready pod -l app={{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} --timeout=300s
+      - echo "Waiting for Fallback Provider to be ready..."
+      - kubectl wait --for=condition=ready pod -l app={{.FALLBACK_BACKEND}} -n {{.NAMESPACE}} --timeout=300s
+      - echo "All providers are ready!"
+      - sleep 5
+
+  port-forward:
+    desc: "Start port forwarding to gateway"
+    cmds:
+      - |
+        # Check if port-forward is already running
+        if [ -f .task/port-forward.pid ]; then
+          PID=$(cat .task/port-forward.pid)
+          if kill -0 $PID 2>/dev/null; then
+            echo "Port forwarding already running on PID $PID"
+            exit 0
+          fi
+        fi
+        
+        # Start port forwarding in background
+        mkdir -p .task
+        ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
+        echo "Starting port forwarding to service: $ENVOY_SERVICE on port {{.PORT_FORWARD}}"
+        nohup kubectl port-forward -n envoy-gateway-system svc/$ENVOY_SERVICE {{.PORT_FORWARD}}:80 > .task/port-forward.log 2>&1 &
+        echo $! > .task/port-forward.pid
+        
+        # Wait for port forwarding to be ready
+        echo "Waiting for port forwarding to be ready..."
+        sleep 3
+        echo "✅ Port forwarding started in background (PID: $(cat .task/port-forward.pid))"
+        echo "Use 'task stop-port-forward' to stop"
+    generates:
+      - .task/port-forward.pid
+    status:
+      - test -f .task/port-forward.pid
+      - kill -0 $(cat .task/port-forward.pid 2>/dev/null) 2>/dev/null
+
+  stop-port-forward:
+    desc: "Stop background port forwarding"
+    cmds:
+      - |
+        if [ -f .task/port-forward.pid ]; then
+          PID=$(cat .task/port-forward.pid)
+          if kill -0 $PID 2>/dev/null; then
+            echo "Stopping port forwarding (PID: $PID)"
+            kill $PID
+            sleep 2
+            kill -9 $PID 2>/dev/null || true
+            echo "✅ Port forwarding stopped"
+          else
+            echo "Port forwarding process not running"
+          fi
+          rm -f .task/port-forward.pid .task/port-forward.log
+        else
+          echo "No port forwarding process found"
+        fi
+        pkill -f "kubectl.*port-forward.*{{.PORT_FORWARD}}" || true
+
+  test:
+    desc: "Run all test scenarios"
+    deps: [test-normal, test-primary-failure, test-bulk-failures]
+    cmds:
+      - echo "All tests completed!"
+
+  test-normal:
+    desc: "Test normal operation with healthy primary"
+    cmds:
+      - |
+        echo "=== Testing normal operation (primary should handle requests) ==="
+        for i in {1..3}; do
+          echo -e "\nRequest $i:"
+          curl -s -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test normal operation"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq -r '.choices[0].message.content // .error // .'
+        done
+
+  test-primary-failure:
+    desc: "Test failover when primary fails"
+    cmds:
+      - task: simulate-primary-failure
+      - |
+        echo "=== Testing with primary failure (should failover to fallback) ==="
+        for i in {1..3}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test with primary failure"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          echo "Status: $HTTP_STATUS"
+          echo "$BODY" | jq -r '.choices[0].message.content // .error // .' 2>/dev/null || echo "$BODY"
+        done
+      - task: simulate-primary-recovery
+
+  test-bulk-failures:
+    desc: "Send multiple requests to observe fallback behavior"
+    cmds:
+      - |
+        echo "=== Testing bulk requests with intermittent failures ==="
+        SUCCESS=0
+        FAILED=0
+        
+        for i in {1..10}; do
+          echo -n "Request $i: "
+          RESPONSE=$(curl -s -w "%{http_code}" -o /tmp/response.json -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Bulk test request '$i'"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          if [ "$RESPONSE" = "200" ]; then
+            echo "✅ Success"
+            ((SUCCESS++))
+          else
+            echo "❌ Failed (Status: $RESPONSE)"
+            ((FAILED++))
+          fi
+        done
+        
+        echo -e "\n=== Summary ==="
+        echo "Successful: $SUCCESS"
+        echo "Failed: $FAILED"
+
+  test-timeout:
+    desc: "Test timeout and fallback behavior"
+    cmds:
+      - task: simulate-primary-slowness
+      - |
+        echo "=== Testing timeout scenario (primary slow, should use fallback) ==="
+        START=$(date +%s)
+        curl -s -H "Content-Type: application/json" \
+          -d '{
+            "model": "{{.MODEL}}",
+            "messages": [{"role": "user", "content": "Test timeout behavior"}]
+          }' \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq .
+        END=$(date +%s)
+        echo "Response time: $((END-START)) seconds"
+      - task: simulate-primary-recovery
+
+  test-circuit-breaker:
+    desc: "Test circuit breaker activation"
+    cmds:
+      - |
+        echo "=== Testing circuit breaker (send many failures to open circuit) ==="
+        task simulate-primary-failure
+        
+        echo "Sending 10 rapid requests to trigger circuit breaker..."
+        for i in {1..10}; do
+          curl -s -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Circuit breaker test '$i'"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions > /dev/null
+          echo -n "."
+        done
+        echo -e "\n"
+        
+        echo "Circuit breaker should now be open. Testing final request:"
+        curl -s -H "Content-Type: application/json" \
+          -d '{
+            "model": "{{.MODEL}}",
+            "messages": [{"role": "user", "content": "Final test after circuit open"}]
+          }' \
+          http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq .
+        
+        task simulate-primary-recovery
+
+  test-primary-health:
+    desc: "Check primary provider health"
+    cmds:
+      - |
+        echo "=== Checking primary provider health ==="
+        kubectl exec -n {{.NAMESPACE}} deploy/{{.PRIMARY_BACKEND}} -- curl -s localhost:8000/v1/models | jq . || echo "Primary provider unhealthy"
+
+  simulate-primary-failure:
+    desc: "Make primary backend return errors"
+    cmds:
+      - |
+        echo "Configuring primary backend to fail..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} FAILURE_RATE=100
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend now returning errors"
+
+  simulate-primary-recovery:
+    desc: "Restore primary backend to healthy state"
+    cmds:
+      - |
+        echo "Restoring primary backend to healthy state..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} FAILURE_RATE=20
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend restored (80% success rate)"
+
+  simulate-primary-slowness:
+    desc: "Make primary backend slow (timeout scenario)"
+    cmds:
+      - |
+        echo "Configuring primary backend to be slow..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} RESPONSE_DELAY=15
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend now slow (15s delay)"
+
+  logs:
+    desc: "Show logs from all components"
+    cmds:
+      - task: logs-primary
+      - task: logs-fallback
+      - task: logs-gateway
+
+  logs-primary:
+    desc: "Show logs from primary provider"
+    cmds:
+      - echo "=== Primary Provider Logs ==="
+      - kubectl logs -l app={{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} --tail=10
+
+  logs-fallback:
+    desc: "Show logs from fallback provider"
+    cmds:
+      - echo "=== Fallback Provider Logs ==="
+      - kubectl logs -l app={{.FALLBACK_BACKEND}} -n {{.NAMESPACE}} --tail=10
+
+  logs-gateway:
+    desc: "Show gateway logs with retry/fallback events"
+    cmds:
+      - |
+        echo "=== Gateway Logs (retry/fallback events) ==="
+        ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
+        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=20 | grep -E "(retry|fallback|circuit|timeout)" || echo "No retry/fallback events in recent logs"
+
+  metrics:
+    desc: "Show fallback and retry metrics"
+    cmds:
+      - |
+        ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
+        echo "Collecting metrics from Envoy pod: $ENVOY_POD"
+        
+        # Port forward to admin interface
+        kubectl port-forward -n envoy-gateway-system $ENVOY_POD 19000:19000 &
+        PF_PID=$!
+        sleep 3
+        
+        echo "=== Upstream Metrics ==="
+        STATS=$(curl -s localhost:19000/stats)
+        
+        echo "--- Primary Provider ({{.PRIMARY_BACKEND}}) ---"
+        echo "$STATS" | grep -E "cluster\.backend/default/{{.PRIMARY_BACKEND}}.*\.(upstream_rq_total|upstream_rq_5xx|upstream_rq_timeout|upstream_rq_retry|circuit_breakers)" | head -10
+        
+        echo -e "\n--- Fallback Provider ({{.FALLBACK_BACKEND}}) ---"
+        echo "$STATS" | grep -E "cluster\.backend/default/{{.FALLBACK_BACKEND}}.*\.(upstream_rq_total|upstream_rq_5xx|upstream_rq_timeout|upstream_rq_retry)" | head -10
+        
+        echo -e "\n=== Retry Metrics ==="
+        echo "$STATS" | grep -E "cluster\..*\.upstream_rq_retry(_success|_overflow):" | head -10
+        
+        echo -e "\n=== Circuit Breaker Status ==="
+        echo "$STATS" | grep -E "circuit_breakers\..*\.(rq_open|cx_open|rq_pending_open):" | head -10
+        
+        kill $PF_PID 2>/dev/null || true
+
+  status:
+    desc: "Check status of all components"
+    cmds:
+      - echo "=== Deployments ==="
+      - kubectl get deployments -n {{.NAMESPACE}} -l "app in ({{.PRIMARY_BACKEND}},{{.FALLBACK_BACKEND}})"
+      - echo -e "\n=== Pods ==="
+      - kubectl get pods -n {{.NAMESPACE}} -l "app in ({{.PRIMARY_BACKEND}},{{.FALLBACK_BACKEND}})"
+      - echo -e "\n=== Services ==="
+      - kubectl get svc -n {{.NAMESPACE}} | grep -E "({{.PRIMARY_BACKEND}}|{{.FALLBACK_BACKEND}})"
+      - echo -e "\n=== AI Routes ==="
+      - kubectl get aigatewayroute -n {{.NAMESPACE}}
+      - echo -e "\n=== Backend Traffic Policy ==="
+      - kubectl get backendtrafficpolicy -n {{.NAMESPACE}}
+
+  show-config:
+    desc: "Show applied configuration using kubectl"
+    cmds:
+      - echo "=== AI Gateway Route Configuration ==="
+      - kubectl get aigatewayroute -n {{.NAMESPACE}} provider-fallback-route -o yaml
+      - echo -e "\n=== Backend Traffic Policy Configuration ==="
+      - kubectl get backendtrafficpolicy -n {{.NAMESPACE}} retry-policy -o yaml
+
+  cleanup:
+    desc: "Clean up all demo resources"
+    cmds:
+      - kubectl delete -f primary-backend.yaml --ignore-not-found=true
+      - kubectl delete -f fallback-backend.yaml --ignore-not-found=true
+      - kubectl delete -f aigatewayroute-with-fallback.yaml --ignore-not-found=true
+      - kubectl delete -f retry-policy.yaml --ignore-not-found=true
+      - rm -rf .task/
+      - echo "Cleanup complete"
