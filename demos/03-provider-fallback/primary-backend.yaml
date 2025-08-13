@@ -16,30 +16,54 @@ spec:
     spec:
       containers:
         - name: simulator
-          image: ghcr.io/llm-d/llm-d-inference-sim:latest
+          image: us-east1-docker.pkg.dev/dogfood-cx/registryrepository/llm-d-inference-sim:d5738db4c1498790a830f73776a1f6b130c2fa15
           args:
             - "--port"
-            - "8000"
+            - "$(LLM_D_PORT)"
             - "--model"
-            - "gpt-4"
+            - "$(LLM_D_MODEL)"
             - "--mode"
-            - "random"
+            - "$(LLM_D_MODE)"
             - "--time-to-first-token"
-            - "500"
+            - "$(LLM_D_TIME_TO_FIRST_TOKEN)"
             - "--time-to-first-token-std-dev"
-            - "100"
+            - "$(LLM_D_TIME_TO_FIRST_TOKEN_STD_DEV)"
             - "--inter-token-latency"
-            - "50"
+            - "$(LLM_D_INTER_TOKEN_LATENCY)"
             - "--inter-token-latency-std-dev"
-            - "10"
+            - "$(LLM_D_INTER_TOKEN_LATENCY_STD_DEV)"
+            - "--failure-injection-rate"
+            - "$(LLM_D_FAILURE_INJECTION_RATE)"
+            - "--failure-types"
+            - "$(LLM_D_FAILURE_TYPES)"
           ports:
             - containerPort: 8000
               name: http
           env:
-            - name: FAILURE_RATE
-              value: "20"
-            - name: RESPONSE_DELAY
+            # Core LLM-D Configuration
+            - name: LLM_D_PORT
+              value: "8000"
+            - name: LLM_D_MODEL
+              value: "gpt-4"
+            - name: LLM_D_MODE
+              value: "random"
+            
+            # Performance Settings
+            - name: LLM_D_TIME_TO_FIRST_TOKEN
+              value: "500"
+            - name: LLM_D_TIME_TO_FIRST_TOKEN_STD_DEV
+              value: "100"
+            - name: LLM_D_INTER_TOKEN_LATENCY
+              value: "50"
+            - name: LLM_D_INTER_TOKEN_LATENCY_STD_DEV
+              value: "10"
+            - name: LLM_D_RESPONSE_DELAY
               value: "0"
+            # Failure Mode Configuration
+            - name: LLM_D_FAILURE_INJECTION_RATE
+              value: "0"
+            - name: LLM_D_FAILURE_TYPES
+              value: ""
           livenessProbe:
             httpGet:
               path: /v1/models

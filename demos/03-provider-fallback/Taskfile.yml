@@ -5,7 +5,7 @@ vars:
   GATEWAY_NAME: envoy-ai-gateway
   PRIMARY_BACKEND: llm-primary
   FALLBACK_BACKEND: llm-fallback
-  MODEL: qwen3
+  MODEL: gpt-4
   PORT_FORWARD: 8080
 
 tasks:
@@ -70,6 +70,180 @@ tasks:
     cmds:
       - echo "All tests completed!"
 
+  test-all-failure-modes:
+    desc: "Test all failure modes with fallback"
+    cmds:
+      - task: test-rate-limit-fallback
+      - task: test-auth-failure-fallback
+      - task: test-context-length-fallback
+      - task: test-server-error-fallback
+      - task: test-model-not-found-fallback
+      - task: test-mixed-failures-fallback
+      - task: simulate-primary-recovery
+      - echo "All failure mode tests completed!"
+
+  test-rate-limit-fallback:
+    desc: "Test rate limit errors trigger fallback"
+    cmds:
+      - task: simulate-rate-limit-failure
+      - |
+        echo "=== Testing rate limit fallback (HTTP 429 → fallback) ==="
+        for i in {1..3}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test rate limit fallback"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          echo "Final Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Fallback successful!"
+            echo "$BODY" | jq -r '.choices[0].message.content // .' 2>/dev/null || echo "$BODY"
+          else
+            echo "❌ Request failed with status $HTTP_STATUS"
+          fi
+        done
+
+  test-auth-failure-fallback:
+    desc: "Test auth errors trigger fallback"
+    cmds:
+      - task: simulate-auth-failure
+      - |
+        echo "=== Testing auth failure fallback (HTTP 401 → fallback) ==="
+        for i in {1..3}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test auth failure fallback"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          echo "Final Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Fallback successful!"
+            echo "$BODY" | jq -r '.choices[0].message.content // .' 2>/dev/null || echo "$BODY"
+          else
+            echo "❌ Request failed with status $HTTP_STATUS"
+          fi
+        done
+
+  test-context-length-fallback:
+    desc: "Test context length errors trigger fallback"
+    cmds:
+      - task: simulate-context-length-failure
+      - |
+        echo "=== Testing context length fallback (HTTP 400 → fallback) ==="
+        for i in {1..3}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test context length fallback"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          echo "Final Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Fallback successful!"
+            echo "$BODY" | jq -r '.choices[0].message.content // .' 2>/dev/null || echo "$BODY"
+          else
+            echo "❌ Request failed with status $HTTP_STATUS"
+          fi
+        done
+
+  test-server-error-fallback:
+    desc: "Test server errors trigger fallback"
+    cmds:
+      - task: simulate-server-error-failure
+      - |
+        echo "=== Testing server error fallback (HTTP 503 → fallback) ==="
+        for i in {1..3}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test server error fallback"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          echo "Final Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Fallback successful!"
+            echo "$BODY" | jq -r '.choices[0].message.content // .' 2>/dev/null || echo "$BODY"
+          else
+            echo "❌ Request failed with status $HTTP_STATUS"
+          fi
+        done
+
+  test-model-not-found-fallback:
+    desc: "Test model not found errors trigger fallback"
+    cmds:
+      - task: simulate-model-not-found-failure
+      - |
+        echo "=== Testing model not found fallback (HTTP 404 → fallback) ==="
+        for i in {1..3}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test model not found fallback"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          echo "Final Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Fallback successful!"
+            echo "$BODY" | jq -r '.choices[0].message.content // .' 2>/dev/null || echo "$BODY"
+          else
+            echo "❌ Request failed with status $HTTP_STATUS"
+          fi
+        done
+
+  test-mixed-failures-fallback:
+    desc: "Test mixed failure types trigger fallback"
+    cmds:
+      - task: simulate-mixed-failures
+      - |
+        echo "=== Testing mixed failures fallback (multiple error types → fallback) ==="
+        for i in {1..5}; do
+          echo -e "\nRequest $i:"
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
+            -d '{
+              "model": "{{.MODEL}}",
+              "messages": [{"role": "user", "content": "Test mixed failures fallback"}]
+            }' \
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
+          
+          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
+          
+          echo "Final Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Fallback successful!"
+            echo "$BODY" | jq -r '.choices[0].message.content // .' 2>/dev/null || echo "$BODY"
+          else
+            echo "❌ Request failed with status $HTTP_STATUS"
+          fi
+        done
+
   test-normal:
     desc: "Test normal operation with healthy primary"
     cmds:
@@ -105,8 +279,35 @@ tasks:
           
           echo "Status: $HTTP_STATUS"
           echo "$BODY" | jq -r '.choices[0].message.content // .error // .' 2>/dev/null || echo "$BODY"
+          
+          # Check which backend served the request
+          echo "Checking which backend served this request..."
+          FALLBACK_LOGS=$(kubectl logs -l app={{.FALLBACK_BACKEND}} -n {{.NAMESPACE}} --tail=5 2>/dev/null | grep -E "(POST|GET|chat|completions)" | tail -1)
+          PRIMARY_LOGS=$(kubectl logs -l app={{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} --tail=5 2>/dev/null | grep -E "(POST|GET|chat|completions)" | tail -1)
+          
+          if [[ -n "$FALLBACK_LOGS" ]]; then
+            echo "✅ CONFIRMED: Request served by FALLBACK backend"
+          elif [[ -n "$PRIMARY_LOGS" ]]; then
+            echo "⚠️  Request served by primary backend (fallback may not have activated)"
+          else
+            echo "❓ Unable to determine which backend served the request"
+          fi
         done
-      - task: simulate-primary-recovery
+      - |
+        echo -e "\n=== Recovery Options ==="
+        echo "Primary backend is currently configured to fail."
+        echo "Options:"
+        echo "1. Keep primary failed for further testing"
+        echo "2. Recover primary to healthy state"
+        echo ""
+        read -p "Do you want to recover the primary backend now? (y/N): " RECOVER
+        if [[ "$RECOVER" == "y" || "$RECOVER" == "Y" ]]; then
+          echo "Recovering primary backend..."
+          task simulate-primary-recovery
+        else
+          echo "Primary backend remains in failed state."
+          echo "Use 'task simulate-primary-recovery' to recover it later."
+        fi
 
   test-bulk-failures:
     desc: "Send multiple requests to observe fallback behavior"
@@ -191,30 +392,103 @@ tasks:
         echo "=== Checking primary provider health ==="
         kubectl exec -n {{.NAMESPACE}} deploy/{{.PRIMARY_BACKEND}} -- curl -s localhost:8000/v1/models | jq . || echo "Primary provider unhealthy"
 
-  simulate-primary-failure:
-    desc: "Make primary backend return errors"
+  # Failure mode simulation tasks using LLM-D Inference Simulator capabilities
+  simulate-rate-limit-failure:
+    desc: "Simulate rate limit errors (HTTP 429)"
     cmds:
       - |
-        echo "Configuring primary backend to fail..."
-        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} FAILURE_RATE=100
+        echo "Configuring primary backend to return rate limit errors..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_MODE=failure \
+          LLM_D_FAILURE_INJECTION_RATE=80 \
+          LLM_D_FAILURE_TYPES=rate_limit
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
-        echo "Primary backend now returning errors"
+        echo "Primary backend now returning 80% rate limit errors (HTTP 429)"
+
+  simulate-auth-failure:
+    desc: "Simulate authentication errors (HTTP 401)"
+    cmds:
+      - |
+        echo "Configuring primary backend to return auth errors..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_MODE=failure \
+          LLM_D_FAILURE_INJECTION_RATE=70 \
+          LLM_D_FAILURE_TYPES=invalid_api_key
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend now returning 70% auth errors (HTTP 401)"
+
+  simulate-context-length-failure:
+    desc: "Simulate context length exceeded errors (HTTP 400)"
+    cmds:
+      - |
+        echo "Configuring primary backend to return context length errors..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_MODE=failure \
+          LLM_D_FAILURE_INJECTION_RATE=60 \
+          LLM_D_FAILURE_TYPES=context_length
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend now returning 60% context length errors (HTTP 400)"
+
+  simulate-server-error-failure:
+    desc: "Simulate server errors (HTTP 503)"
+    cmds:
+      - |
+        echo "Configuring primary backend to return server errors..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_MODE=failure \
+          LLM_D_FAILURE_INJECTION_RATE=90 \
+          LLM_D_FAILURE_TYPES=server_error
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend now returning 90% server errors (HTTP 503)"
+
+  simulate-model-not-found-failure:
+    desc: "Simulate model not found errors (HTTP 404)"
+    cmds:
+      - |
+        echo "Configuring primary backend to return model not found errors..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_MODE=failure \
+          LLM_D_FAILURE_INJECTION_RATE=50 \
+          LLM_D_FAILURE_TYPES=model_not_found
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend now returning 50% model not found errors (HTTP 404)"
+
+  simulate-mixed-failures:
+    desc: "Simulate multiple failure types simultaneously"
+    cmds:
+      - |
+        echo "Configuring primary backend with mixed failures..."
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_MODE=failure \
+          LLM_D_FAILURE_INJECTION_RATE=75 \
+          LLM_D_FAILURE_TYPES=rate_limit,server_error,context_length
+        kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
+        echo "Primary backend now returning 75% mixed failures (rate_limit, server_error, context_length)"
+
+  simulate-primary-failure:
+    desc: "Legacy: Make primary backend return generic errors"
+    cmds:
+      - task: simulate-server-error-failure
 
   simulate-primary-recovery:
     desc: "Restore primary backend to healthy state"
     cmds:
       - |
         echo "Restoring primary backend to healthy state..."
-        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} FAILURE_RATE=20
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_MODE=echo \
+          LLM_D_FAILURE_INJECTION_RATE- \
+          LLM_D_FAILURE_TYPES-
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
-        echo "Primary backend restored (80% success rate)"
+        echo "Primary backend restored to healthy echo mode"
 
   simulate-primary-slowness:
     desc: "Make primary backend slow (timeout scenario)"
     cmds:
       - |
         echo "Configuring primary backend to be slow..."
-        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} RESPONSE_DELAY=15
+        kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
+          LLM_D_RESPONSE_DELAY=15000
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now slow (15s delay)"
 
@@ -229,13 +503,13 @@ tasks:
     desc: "Show logs from primary provider"
     cmds:
       - echo "=== Primary Provider Logs ==="
-      - kubectl logs -l app={{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} --tail=10
+      - kubectl logs -l app={{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} --tail=20 | jq -c .
 
   logs-fallback:
     desc: "Show logs from fallback provider"
     cmds:
       - echo "=== Fallback Provider Logs ==="
-      - kubectl logs -l app={{.FALLBACK_BACKEND}} -n {{.NAMESPACE}} --tail=10
+      - kubectl logs -l app={{.FALLBACK_BACKEND}} -n {{.NAMESPACE}} --tail=20 | jq -c .
 
   logs-gateway:
     desc: "Show gateway logs with retry/fallback events"
@@ -243,7 +517,7 @@ tasks:
       - |
         echo "=== Gateway Logs (retry/fallback events) ==="
         ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
-        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=20 | grep -E "(retry|fallback|circuit|timeout)" || echo "No retry/fallback events in recent logs"
+        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=20 | jq -c .
 
   metrics:
     desc: "Show fallback and retry metrics"
