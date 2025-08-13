@@ -27,11 +27,11 @@ spec:
             - "--time-to-first-token"
             - "500"
             - "--time-to-first-token-std-dev"
-            - "200"
+            - "100"
             - "--inter-token-latency"
             - "50"
             - "--inter-token-latency-std-dev"
-            - "20"
+            - "10"
           ports:
             - containerPort: 8000
               name: http

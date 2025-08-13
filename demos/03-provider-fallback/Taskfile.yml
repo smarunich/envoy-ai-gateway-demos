@@ -5,7 +5,7 @@ vars:
   GATEWAY_NAME: envoy-ai-gateway
   PRIMARY_BACKEND: llm-primary
   FALLBACK_BACKEND: llm-fallback
-  MODEL: gpt-4
+  MODEL: qwen3
   PORT_FORWARD: 8080
 
 tasks:
@@ -15,10 +15,10 @@ tasks:
       - task --list --sort=none
 
   prerequisites:
-    desc: "Ensure base environment is ready"
+    desc: "Ensure 01-getting-started is deployed"
     dir: ../01-getting-started
     cmds:
-      - task prerequisites
+      - task setup
 
   setup:
     desc: "Complete setup of the provider fallback demo"
@@ -53,56 +53,16 @@ tasks:
       - sleep 5
 
   port-forward:
-    desc: "Start port forwarding to gateway"
+    desc: "Start port forwarding (delegates to 01-getting-started)"
+    dir: ../01-getting-started
     cmds:
-      - |
-        # Check if port-forward is already running
-        if [ -f .task/port-forward.pid ]; then
-          PID=$(cat .task/port-forward.pid)
-          if kill -0 $PID 2>/dev/null; then
-            echo "Port forwarding already running on PID $PID"
-            exit 0
-          fi
-        fi
-        
-        # Start port forwarding in background
-        mkdir -p .task
-        ENVOY_SERVICE=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
-        echo "Starting port forwarding to service: $ENVOY_SERVICE on port {{.PORT_FORWARD}}"
-        nohup kubectl port-forward -n envoy-gateway-system svc/$ENVOY_SERVICE {{.PORT_FORWARD}}:80 > .task/port-forward.log 2>&1 &
-        echo $! > .task/port-forward.pid
-        
-        # Wait for port forwarding to be ready
-        echo "Waiting for port forwarding to be ready..."
-        sleep 3
-        echo "✅ Port forwarding started in background (PID: $(cat .task/port-forward.pid))"
-        echo "Use 'task stop-port-forward' to stop"
-    generates:
-      - .task/port-forward.pid
-    status:
-      - test -f .task/port-forward.pid
-      - kill -0 $(cat .task/port-forward.pid 2>/dev/null) 2>/dev/null
+      - task port-forward
 
   stop-port-forward:
-    desc: "Stop background port forwarding"
+    desc: "Stop port forwarding (delegates to 01-getting-started)"
+    dir: ../01-getting-started
     cmds:
-      - |
-        if [ -f .task/port-forward.pid ]; then
-          PID=$(cat .task/port-forward.pid)
-          if kill -0 $PID 2>/dev/null; then
-            echo "Stopping port forwarding (PID: $PID)"
-            kill $PID
-            sleep 2
-            kill -9 $PID 2>/dev/null || true
-            echo "✅ Port forwarding stopped"
-          else
-            echo "Port forwarding process not running"
-          fi
-          rm -f .task/port-forward.pid .task/port-forward.log
-        else
-          echo "No port forwarding process found"
-        fi
-        pkill -f "kubectl.*port-forward.*{{.PORT_FORWARD}}" || true
+      - task stop-port-forward
 
   test:
     desc: "Run all test scenarios"
@@ -122,7 +82,7 @@ tasks:
               "model": "{{.MODEL}}",
               "messages": [{"role": "user", "content": "Test normal operation"}]
             }' \
-            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq -r '.choices[0].message.content // .error // .'
+            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions | jq -c .
         done
 
   test-primary-failure:
