@@ -260,54 +260,19 @@ tasks:
         done
 
   test-primary-failure:
-    desc: "Test failover when primary fails"
+    desc: "Interactive timeout analysis demo - compares behavior with/without retry policy"
     cmds:
-      - task: simulate-primary-failure
       - |
-        echo "=== Testing with primary failure (should failover to fallback) ==="
-        for i in {1..3}; do
-          echo -e "\nRequest $i:"
-          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" -H "Content-Type: application/json" \
-            -d '{
-              "model": "{{.MODEL}}",
-              "messages": [{"role": "user", "content": "Test with primary failure"}]
-            }' \
-            http://localhost:{{.PORT_FORWARD}}/v1/chat/completions)
-          
-          HTTP_STATUS=$(echo "$RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
-          BODY=$(echo "$RESPONSE" | sed '/HTTP_STATUS:/d')
-          
-          echo "Status: $HTTP_STATUS"
-          echo "$BODY" | jq -r '.choices[0].message.content // .error // .' 2>/dev/null || echo "$BODY"
-          
-          # Check which backend served the request
-          echo "Checking which backend served this request..."
-          FALLBACK_LOGS=$(kubectl logs -l app={{.FALLBACK_BACKEND}} -n {{.NAMESPACE}} --tail=5 2>/dev/null | grep -E "(POST|GET|chat|completions)" | tail -1)
-          PRIMARY_LOGS=$(kubectl logs -l app={{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} --tail=5 2>/dev/null | grep -E "(POST|GET|chat|completions)" | tail -1)
-          
-          if [[ -n "$FALLBACK_LOGS" ]]; then
-            echo "✅ CONFIRMED: Request served by FALLBACK backend"
-          elif [[ -n "$PRIMARY_LOGS" ]]; then
-            echo "⚠️  Request served by primary backend (fallback may not have activated)"
-          else
-            echo "❓ Unable to determine which backend served the request"
-          fi
-        done
-      - |
-        echo -e "\n=== Recovery Options ==="
-        echo "Primary backend is currently configured to fail."
-        echo "Options:"
-        echo "1. Keep primary failed for further testing"
-        echo "2. Recover primary to healthy state"
-        echo ""
-        read -p "Do you want to recover the primary backend now? (y/N): " RECOVER
-        if [[ "$RECOVER" == "y" || "$RECOVER" == "Y" ]]; then
-          echo "Recovering primary backend..."
-          task simulate-primary-recovery
-        else
-          echo "Primary backend remains in failed state."
-          echo "Use 'task simulate-primary-recovery' to recover it later."
-        fi
+        # Export environment variables for the script
+        export NAMESPACE={{.NAMESPACE}}
+        export GATEWAY_NAME={{.GATEWAY_NAME}}
+        export PRIMARY_BACKEND={{.PRIMARY_BACKEND}}
+        export FALLBACK_BACKEND={{.FALLBACK_BACKEND}}
+        export MODEL={{.MODEL}}
+        export PORT_FORWARD={{.PORT_FORWARD}}
+        
+        # Run the interactive timeout analysis script
+        ./test-timeout-analysis.sh
 
   test-bulk-failures:
     desc: "Send multiple requests to observe fallback behavior"
@@ -401,7 +366,9 @@ tasks:
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
           LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=80 \
-          LLM_D_FAILURE_TYPES=rate_limit
+          LLM_D_FAILURE_TYPE_1=rate_limit \
+          LLM_D_FAILURE_TYPE_2="" \
+          LLM_D_FAILURE_TYPE_3=""
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 80% rate limit errors (HTTP 429)"
 
@@ -413,7 +380,9 @@ tasks:
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
           LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=70 \
-          LLM_D_FAILURE_TYPES=invalid_api_key
+          LLM_D_FAILURE_TYPE_1=invalid_api_key \
+          LLM_D_FAILURE_TYPE_2="" \
+          LLM_D_FAILURE_TYPE_3=""
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 70% auth errors (HTTP 401)"
 
@@ -425,7 +394,9 @@ tasks:
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
           LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=60 \
-          LLM_D_FAILURE_TYPES=context_length
+          LLM_D_FAILURE_TYPE_1=context_length \
+          LLM_D_FAILURE_TYPE_2="" \
+          LLM_D_FAILURE_TYPE_3=""
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 60% context length errors (HTTP 400)"
 
@@ -437,7 +408,9 @@ tasks:
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
           LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=90 \
-          LLM_D_FAILURE_TYPES=server_error
+          LLM_D_FAILURE_TYPE_1=server_error \
+          LLM_D_FAILURE_TYPE_2="" \
+          LLM_D_FAILURE_TYPE_3=""
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 90% server errors (HTTP 503)"
 
@@ -449,7 +422,9 @@ tasks:
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
           LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=50 \
-          LLM_D_FAILURE_TYPES=model_not_found
+          LLM_D_FAILURE_TYPE_1=model_not_found \
+          LLM_D_FAILURE_TYPE_2="" \
+          LLM_D_FAILURE_TYPE_3=""
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 50% model not found errors (HTTP 404)"
 
@@ -461,7 +436,9 @@ tasks:
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
           LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=75 \
-          LLM_D_FAILURE_TYPES=rate_limit,server_error,context_length
+          LLM_D_FAILURE_TYPE_1=rate_limit \
+          LLM_D_FAILURE_TYPE_2=server_error \
+          LLM_D_FAILURE_TYPE_3=context_length
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 75% mixed failures (rate_limit, server_error, context_length)"
 
@@ -476,11 +453,13 @@ tasks:
       - |
         echo "Restoring primary backend to healthy state..."
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
-          LLM_D_MODE=echo \
-          LLM_D_FAILURE_INJECTION_RATE- \
-          LLM_D_FAILURE_TYPES-
+          LLM_D_MODE=random \
+          LLM_D_FAILURE_INJECTION_RATE=0 \
+          LLM_D_FAILURE_TYPE_1="" \
+          LLM_D_FAILURE_TYPE_2="" \
+          LLM_D_FAILURE_TYPE_3=""
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
-        echo "Primary backend restored to healthy echo mode"
+        echo "Primary backend restored to healthy random mode"
 
   simulate-primary-slowness:
     desc: "Make primary backend slow (timeout scenario)"
@@ -518,6 +497,53 @@ tasks:
         echo "=== Gateway Logs (retry/fallback events) ==="
         ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
         kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=20 | jq -c .
+
+  show-retry-evidence:
+    desc: "Show evidence of retry behavior and timeout differences"
+    cmds:
+      - |
+        echo "=== RETRY POLICY STATUS ==="
+        kubectl get backendtrafficpolicy retry-policy -n {{.NAMESPACE}} -o yaml 2>/dev/null || echo "❌ Retry policy not found"
+        
+        echo -e "\n=== GATEWAY RETRY METRICS ==="
+        ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
+        
+        # Port forward to admin interface for detailed metrics
+        kubectl port-forward -n envoy-gateway-system $ENVOY_POD 19001:19000 &
+        PF_PID=$!
+        sleep 3
+        
+        echo "📊 Upstream Request Metrics:"
+        STATS=$(curl -s localhost:19001/stats)
+        
+        echo "--- Primary Backend Stats ---"
+        echo "$STATS" | grep -E "cluster\.backend/default/{{.PRIMARY_BACKEND}}.*\.(upstream_rq_total|upstream_rq_5xx|upstream_rq_timeout|upstream_rq_retry|upstream_rq_retry_success|upstream_cx_connect_fail):" | head -10
+        
+        echo -e "\n--- Fallback Backend Stats ---"
+        echo "$STATS" | grep -E "cluster\.backend/default/{{.FALLBACK_BACKEND}}.*\.(upstream_rq_total|upstream_rq_2xx|upstream_rq_timeout):" | head -10
+        
+        echo -e "\n--- Retry-Specific Metrics ---"
+        echo "$STATS" | grep -E "retry\.(upstream_rq_retry|upstream_rq_retry_success|upstream_rq_retry_overflow):" || echo "No retry metrics found"
+        
+        echo -e "\n--- Circuit Breaker Status ---"
+        echo "$STATS" | grep -E "circuit_breakers\..*\.(rq_open|cx_open):" | head -5
+        
+        echo -e "\n=== RECENT GATEWAY LOGS (showing retry attempts) ==="
+        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=30 | grep -E "(retry|upstream_rq|timeout|circuit)" | tail -10 || echo "No retry-related logs in recent entries"
+        
+        kill $PF_PID 2>/dev/null || true
+        
+        echo -e "\n=== TIMEOUT COMPARISON GUIDE ==="
+        echo "🕐 EXPECTED TIMING PATTERNS:"
+        echo "   • No Retry Policy: ~1-5 seconds (fast failure)"
+        echo "   • With Retry Policy: ~30-150 seconds (depends on failure type and retry success)"
+        echo "   • Successful Fallback: Should complete within retry timeout"
+        echo ""
+        echo "🔍 EVIDENCE TO LOOK FOR:"
+        echo "   1. upstream_rq_retry > 0 (retry attempts made)"
+        echo "   2. Different response times in test phases"
+        echo "   3. Primary backend errors followed by fallback success"
+        echo "   4. Circuit breaker activation after multiple failures"
 
   metrics:
     desc: "Show fallback and retry metrics"

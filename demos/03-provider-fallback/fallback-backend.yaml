@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: simulator
-          image: us-east1-docker.pkg.dev/dogfood-cx/registryrepository/llm-d-inference-sim:d5738db4c1498790a830f73776a1f6b130c2fa15
+          image: us-east1-docker.pkg.dev/dogfood-cx/registryrepository/llm-d-inference-sim:972092ae660fc2628cd18571be8c50a59ff59ea9
           args:
             - "--port"
             - "$(LLM_D_PORT)"
@@ -35,7 +35,9 @@ spec:
             - "--failure-injection-rate"
             - "$(LLM_D_FAILURE_INJECTION_RATE)"
             - "--failure-types"
-            - "$(LLM_D_FAILURE_TYPES)"
+            - "$(LLM_D_FAILURE_TYPE_1)"
+            - "$(LLM_D_FAILURE_TYPE_2)"
+            - "$(LLM_D_FAILURE_TYPE_3)"
           ports:
             - containerPort: 8001
               name: http
@@ -62,7 +64,11 @@ spec:
             # Failure Mode Configuration (fallback should be reliable)
             - name: LLM_D_FAILURE_INJECTION_RATE
               value: "0"
-            - name: LLM_D_FAILURE_TYPES
+            - name: LLM_D_FAILURE_TYPE_1
+              value: ""
+            - name: LLM_D_FAILURE_TYPE_2
+              value: ""
+            - name: LLM_D_FAILURE_TYPE_3
               value: ""
           livenessProbe:
             httpGet:
