@@ -19,51 +19,69 @@ This demo sets up:
 
 ## Quick Start
 
-1. Navigate to the demo directory:
+1. **Setup the demo environment:**
 ```bash
 cd demos/03-provider-fallback
-```
-
-2. Run the complete setup:
-```bash
 task setup
 ```
 
-This will:
-- Deploy primary and fallback LLM backends
-- Configure automatic failover policies
-- Set up retry and circuit breaker configurations
-
-3. In a separate terminal, start port forwarding:
+2. **Test normal operation (both providers healthy):**
 ```bash
-task port-forward
+task test-normal
 ```
 
-4. Test the fallback behavior:
+3. **Test provider fallback behavior:**
 ```bash
-task test
+task test-primary-failure
 ```
 
-> **Next Steps**: Once you've completed the setup and testing, check out the [Envoy AI Gateway Provider Fallback Guide](https://aigateway.envoyproxy.io/docs/capabilities/traffic/provider-fallback) to learn more about advanced fallback configurations.
+4. **View logs to see failover in action:**
+```bash
+task logs
+```
 
-## Available Tasks
+5. **Check metrics to validate retry/fallback behavior:**
+```bash
+task metrics
+```
 
-Run `task` to see all available tasks:
+## Core Workflow
 
-- `task setup` - Complete setup of the demo environment
-- `task deploy` - Deploy all components (primary, fallback, and gateway config)
-- `task port-forward` - Start port forwarding to access the gateway
-- `task test` - Run all test scenarios
-- `task test-normal` - Test successful requests through primary provider
-- `task test-primary-failure` - Test failover when primary fails
-- `task test-bulk-failures` - Send multiple requests to observe fallback behavior
-- `task simulate-primary-failure` - Make primary backend return errors
-- `task simulate-primary-recovery` - Restore primary backend to healthy state
-- `task simulate-primary-slowness` - Make primary backend slow (timeout scenario)
-- `task logs` - Show logs from all components
-- `task metrics` - Show fallback and retry metrics
-- `task status` - Check status of all components
-- `task cleanup` - Remove all demo resources
+### 1. Setup
+```bash
+task setup
+```
+Deploys primary and fallback LLM providers with retry policies and starts port forwarding.
+
+### 2. Test Normal Operation  
+```bash
+task test-normal
+```
+Verifies requests work when both providers are healthy. All traffic should route to the primary provider.
+
+### 3. Test Failover Behavior
+```bash
+task test-primary-failure
+```
+**Interactive demo** that:
+- Removes retry policy and shows fast failures (baseline)
+- Applies retry policy and demonstrates successful fallback
+- Provides detailed timing analysis and metrics
+- Includes recovery options
+
+### 4. View Logs
+```bash
+task logs                 # All component logs
+task logs-primary         # Primary provider logs  
+task logs-fallback        # Fallback provider logs
+task logs-gateway         # Gateway retry/fallback events
+```
+
+### 5. Check Metrics
+```bash
+task metrics              # Retry and fallback statistics
+task show-retry-evidence  # Detailed retry evidence and analysis
+```
 
 ## Architecture
 
@@ -89,7 +107,7 @@ Run `task` to see all available tasks:
 - **Behavior**: Simulated with variable latency and random responses
 - **Port**: 8000
 - **Mode**: Random (returns varied responses)
-- **Latency**: 500ms ± 200ms first token, 50ms ± 20ms inter-token
+- **Latency**: 500ms ± 100ms first token, 50ms ± 10ms inter-token
 
 ### Fallback Provider (Stable)
 - **Name**: `llm-fallback`
@@ -100,97 +118,10 @@ Run `task` to see all available tasks:
 - **Purpose**: Stable backup when primary fails
 
 ### Retry Policy
-- **Max Retries**: 3 attempts
-- **Backoff**: Exponential (1s base, 10s max)
-- **Retry On**: 5xx errors, reset, connect-failure
-- **Per-Try Timeout**: 10 seconds
-
-### Circuit Breaker
-- **Consecutive Errors**: 5 failures trigger circuit open
-- **Recovery**: 30-second interval checks
-- **Ejection Duration**: 30 seconds
-
-## Testing Scenarios
-
-### Scenario 1: Normal Operation
-```bash
-task test-normal
-```
-Sends requests when primary is healthy. All requests should be handled by the primary provider.
-
-### Scenario 2: Primary Provider Failure
-```bash
-# First, simulate primary failure
-task simulate-primary-failure
-
-# Then test the requests
-task test-primary-failure
-```
-Requests automatically failover to the fallback provider after primary returns errors.
-
-### Scenario 3: Primary Provider Timeout
-```bash
-# Simulate slow responses
-task simulate-primary-slowness
-
-# Test timeout and fallback
-task test-timeout
-```
-When primary is slow, requests timeout and retry with fallback provider.
-
-### Scenario 4: Circuit Breaker Activation
-```bash
-# Send many requests to trigger circuit breaker
-task test-circuit-breaker
-```
-After consecutive failures, circuit breaker opens and all traffic goes directly to fallback.
-
-## Monitoring Fallback Behavior
-
-### View Real-time Metrics
-```bash
-task metrics
-```
-
-This shows:
-- Retry attempts and success rates
-- Circuit breaker state (open/closed)
-- Request distribution between primary and fallback
-- Error rates per backend
-
-### Example Metrics Output
-```
-=== Upstream Metrics ===
-Primary Provider (llm-primary):
-  Total Requests: 100
-  Success Rate: 20%
-  Circuit Breaker: OPEN
-  
-Fallback Provider (llm-fallback):
-  Total Requests: 80
-  Success Rate: 100%
-  Circuit Breaker: CLOSED
-
-=== Retry Metrics ===
-Total Retries: 80
-Successful After Retry: 80
-Failed After All Retries: 0
-```
-
-### View Logs
-```bash
-# All components
-task logs
-
-# Just primary provider
-task logs-primary
-
-# Just fallback provider
-task logs-fallback
-
-# Gateway logs with retry/fallback events
-task logs-gateway
-```
+- **Max Retries**: 5 attempts
+- **Backoff**: Exponential (100ms base, 10s max)
+- **Retry On**: 503 errors, connect-failure
+- **Per-Try Timeout**: 30 seconds
 
 ## How It Works
 
@@ -213,6 +144,116 @@ task logs-gateway
 
 6. **Response**: Client receives response from whichever provider succeeded
 
+## Testing Scenarios
+
+### Scenario 1: Normal Operation
+```bash
+task test-normal
+```
+Sends requests when primary is healthy. All requests should be handled by the primary provider.
+
+### Scenario 2: Primary Provider Failure
+```bash
+task test-primary-failure
+```
+**Interactive demo** that shows:
+- Phase 1: Fast failures without retry policy (baseline)
+- Phase 2: Successful fallback with retry policy
+- Phase 3: Detailed metrics and analysis
+
+### Scenario 3: Specific Failure Types
+```bash
+# Simulate different error scenarios
+task simulate-rate-limit-failure       # HTTP 429 errors
+task simulate-auth-failure             # HTTP 401 errors  
+task simulate-server-error-failure     # HTTP 503 errors
+task simulate-mixed-failures           # Random error types
+
+# Then test the fallback behavior
+task test-<failure-type>-fallback
+```
+
+### Scenario 4: Circuit Breaker Activation
+```bash
+task test-circuit-breaker
+```
+After consecutive failures, circuit breaker opens and all traffic goes directly to fallback.
+
+## Monitoring Fallback Behavior
+
+### View Real-time Metrics
+```bash
+task metrics
+```
+
+This shows:
+- Retry attempts and success rates
+- Circuit breaker state
+- Request distribution between primary and fallback
+- Error rates per backend
+
+### Example Metrics Output
+```
+=== Upstream Metrics ===
+Primary Provider (llm-primary):
+  upstream_rq_total: 100
+  upstream_rq_5xx: 80
+  upstream_rq_retry: 80
+  
+Fallback Provider (llm-fallback):
+  upstream_rq_total: 80
+  upstream_rq_2xx: 80
+
+=== Retry Metrics ===
+upstream_rq_retry_success: 80
+```
+
+### View Logs
+```bash
+task logs                 # All component logs
+task logs-primary         # Primary provider logs  
+task logs-fallback        # Fallback provider logs
+task logs-gateway         # Gateway retry/fallback events
+```
+
+## Optional Tasks
+
+Beyond the core workflow, additional tasks are available for advanced testing:
+
+### Extended Testing
+```bash
+task test                           # Run all test scenarios
+task test-bulk-failures            # Send multiple requests
+task test-timeout                  # Test timeout scenarios  
+task test-circuit-breaker          # Test circuit breaker activation
+task test-all-failure-modes        # Test all failure types sequentially
+```
+
+### Individual Failure Type Testing
+```bash
+task test-rate-limit-fallback       # Test rate limit → fallback
+task test-auth-failure-fallback     # Test auth error → fallback
+task test-context-length-fallback   # Test context length → fallback
+task test-server-error-fallback     # Test server error → fallback
+task test-model-not-found-fallback  # Test model not found → fallback
+task test-mixed-failures-fallback   # Test mixed errors → fallback
+```
+
+### Status and Monitoring
+```bash
+task status                         # Check all component status
+task test-primary-health           # Health check primary provider
+task port-forward                  # Start port forwarding manually
+task stop-port-forward             # Stop port forwarding
+```
+
+### Configuration Management
+```bash
+task deploy                        # Deploy components only (no setup)
+task wait-ready                    # Wait for components to be ready
+task show-config                   # Display applied configurations
+```
+
 ## Advanced Configuration
 
 ### Custom Failure Conditions
@@ -220,10 +261,14 @@ task logs-gateway
 You can define what constitutes a failure:
 ```yaml
 retryOn:
-  - 5xx           # Any 500-level error
-  - reset         # Connection reset
-  - connect-failure
-  - retriable-4xx # Specific 4xx errors
+  httpStatusCodes:
+    - 503           # Service unavailable
+    - 502           # Bad gateway
+    - 500           # Internal server error
+  triggers:
+    - reset         # Connection reset
+    - connect-failure
+    - retriable-status-codes
 ```
 
 ### Weighted Routing
@@ -284,7 +329,8 @@ After exploring this demo, you can:
 
 ## References
 
-- [Provider Fallback Documentation](https://aigateway.envoyproxy.io/docs/capabilities/traffic/provider-fallback)
+- [Envoy AI Gateway Provider Fallback Guide](https://aigateway.envoyproxy.io/docs/capabilities/traffic/provider-fallback)
 - [Envoy Retry Policy](https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/router_filter#config-http-filters-router-x-envoy-retry-on)
 - [Circuit Breaker Pattern](https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/circuit_breaking)
 - [BackendTrafficPolicy API](https://gateway.envoyproxy.io/docs/api/extension_types/#backendtrafficpolicy)
+- [LLM-D Inference Simulator](https://github.com/llm-d/llm-d-inference-sim)
