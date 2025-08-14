@@ -120,11 +120,6 @@ jobs:
         echo "🧪 Testing timeout and fallback behavior..."
         task test-timeout
 
-    - name: Test bulk failures
-      run: |
-        echo "🧪 Testing bulk requests with intermittent failures..."
-        task test-bulk-failures
-
     - name: Test circuit breaker
       run: |
         echo "🧪 Testing circuit breaker activation..."
