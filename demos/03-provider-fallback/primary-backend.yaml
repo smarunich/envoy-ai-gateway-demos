@@ -1,0 +1,123 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-primary
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-primary
+  template:
+    metadata:
+      labels:
+        app: llm-primary
+    spec:
+      containers:
+        - name: simulator
+          image: us-east1-docker.pkg.dev/dogfood-cx/registryrepository/llm-d-inference-sim:8239ac1527d6b47dab5019bffe51a115080361cf
+          args:
+            - "--port"
+            - "$(LLM_D_PORT)"
+            - "--model"
+            - "$(LLM_D_MODEL)"
+            - "--mode"
+            - "$(LLM_D_MODE)"
+            - "--time-to-first-token"
+            - "$(LLM_D_TIME_TO_FIRST_TOKEN)"
+            - "--time-to-first-token-std-dev"
+            - "$(LLM_D_TIME_TO_FIRST_TOKEN_STD_DEV)"
+            - "--inter-token-latency"
+            - "$(LLM_D_INTER_TOKEN_LATENCY)"
+            - "--inter-token-latency-std-dev"
+            - "$(LLM_D_INTER_TOKEN_LATENCY_STD_DEV)"
+            - "--failure-injection-rate"
+            - "$(LLM_D_FAILURE_INJECTION_RATE)"
+            - "--failure-types"
+            - "$(LLM_D_FAILURE_TYPE)"
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            # Core LLM-D Configuration
+            - name: LLM_D_PORT
+              value: "8000"
+            - name: LLM_D_MODEL
+              value: "gpt-4"
+            - name: LLM_D_MODE
+              value: "random"
+            
+            # Performance Settings
+            - name: LLM_D_TIME_TO_FIRST_TOKEN
+              value: "500"
+            - name: LLM_D_TIME_TO_FIRST_TOKEN_STD_DEV
+              value: "100"
+            - name: LLM_D_INTER_TOKEN_LATENCY
+              value: "50"
+            - name: LLM_D_INTER_TOKEN_LATENCY_STD_DEV
+              value: "10"
+            - name: LLM_D_RESPONSE_DELAY
+              value: "0"
+            # Failure Mode Configuration
+            - name: LLM_D_FAILURE_INJECTION_RATE
+              value: "0"
+            - name: LLM_D_FAILURE_TYPE
+              value: ""
+          livenessProbe:
+            httpGet:
+              path: /v1/models
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /v1/models
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-primary
+  namespace: default
+spec:
+  selector:
+    app: llm-primary
+  ports:
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIServiceBackend
+metadata:
+  name: llm-primary-backend
+  namespace: default
+spec:
+  schema:
+    name: OpenAI
+  backendRef:
+    name: llm-primary-backend-ref
+    kind: Backend
+    group: gateway.envoyproxy.io
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: llm-primary-backend-ref
+  namespace: default
+spec:
+  endpoints:
+    - fqdn:
+        hostname: llm-primary.default.svc.cluster.local
+        port: 8000

@@ -1,0 +1,27 @@
+---
+apiVersion: aigateway.envoyproxy.io/v1alpha1
+kind: AIGatewayRoute
+metadata:
+  name: provider-fallback-route
+  namespace: default
+spec:
+  schema:
+    name: OpenAI
+  parentRefs:
+    - name: envoy-ai-gateway
+      kind: Gateway
+      group: gateway.networking.k8s.io
+  rules:
+    # Route for gpt-4 model with fallback support
+    - matches:
+        - headers:
+            - type: Exact
+              name: x-ai-eg-model
+              value: gpt-4
+      # Multiple backend refs enable fallback behavior
+      # Traffic will go to primary first, then fallback on failure
+      backendRefs:
+        - name: llm-primary-backend
+          weight: 1
+        - name: llm-fallback-backend
+          weight: 1

@@ -1,0 +1,182 @@
+name: Demo 03 - Provider Fallback
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'demos/03-provider-fallback/**'
+      - '.github/workflows/demo-03-provider-fallback.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'demos/03-provider-fallback/**'
+      - '.github/workflows/demo-03-provider-fallback.yml'
+  workflow_dispatch:
+
+jobs:
+  demo-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./demos/03-provider-fallback
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Task
+      uses: arduino/setup-task@v2
+      with:
+        version: 3.x
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup prerequisites
+      run: |
+        # Install kubectl
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        chmod +x kubectl
+        sudo mv kubectl /usr/local/bin/
+        
+        # Install kind
+        curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.29.0/kind-linux-amd64
+        chmod +x ./kind
+        sudo mv ./kind /usr/local/bin/
+        
+        # Install helm
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+        
+        # Install jq (should already be available)
+        sudo apt-get update
+        sudo apt-get install -y jq bc
+        
+        # Verify installations
+        echo "Tool versions:"
+        kubectl version --client
+        kind version
+        helm version
+        jq --version
+        bc --version
+        docker --version
+        task --version
+
+    - name: Free up disk space
+      run: |
+        docker system prune -af
+        
+    - name: Clean up existing Kind resources
+      run: |
+        echo "🧹 Cleaning up any existing Kind clusters and containers..."
+        # Delete any existing kind clusters
+        kind delete clusters --all || true
+
+    - name: Deploy demo components
+      run: |
+        echo "🚀 Setting up provider fallback demo..."
+        task setup
+
+    - name: Start port forwarding in background
+      run: |
+        echo "🔌 Starting port forwarding..."
+        task port-forward
+
+    - name: Test normal operation
+      run: |
+        echo "🧪 Testing normal operation with healthy primary..."
+        sleep 5  # Wait for port forwarding to stabilize
+        task test-normal
+
+    - name: Test rate limit fallback
+      run: |
+        echo "🧪 Testing rate limit errors trigger fallback..."
+        task test-rate-limit-fallback
+
+    - name: Test auth failure fallback
+      run: |
+        echo "🧪 Testing authentication errors trigger fallback..."
+        task test-auth-failure-fallback
+
+    - name: Test context length fallback
+      run: |
+        echo "🧪 Testing context length errors trigger fallback..."
+        task test-context-length-fallback
+
+    - name: Test server error fallback
+      run: |
+        echo "🧪 Testing server errors trigger fallback..."
+        task test-server-error-fallback
+
+    - name: Test model not found fallback
+      run: |
+        echo "🧪 Testing model not found errors trigger fallback..."
+        task test-model-not-found-fallback
+
+    - name: Test mixed failures fallback
+      run: |
+        echo "🧪 Testing mixed failure types trigger fallback..."
+        task test-mixed-failures-fallback
+
+    - name: Test timeout scenario
+      run: |
+        echo "🧪 Testing timeout and fallback behavior..."
+        task test-timeout
+
+    - name: Test circuit breaker
+      run: |
+        echo "🧪 Testing circuit breaker activation..."
+        task test-circuit-breaker
+
+    - name: Check primary provider health
+      run: |
+        echo "📊 Checking primary provider health..."
+        task test-primary-health || true
+
+    - name: Capture metrics
+      run: |
+        echo "📊 Capturing provider fallback metrics..."
+        task metrics || true
+
+    - name: Check component status
+      run: |
+        echo "📋 Checking component status..."
+        task status
+
+    - name: Show component logs
+      if: always()
+      run: |
+        echo "📋 Showing component logs..."
+        task logs || true
+
+    - name: Show failure diagnostics
+      if: failure()
+      run: |
+        echo "🔍 Failure diagnostics..."
+        echo "=== Pods Status ==="
+        kubectl get pods --all-namespaces || true
+        echo "=== BackendTrafficPolicy Status ==="
+        kubectl get backendtrafficpolicy --all-namespaces || true
+        echo "=== AIGatewayRoute Status ==="
+        kubectl get aigatewayroute --all-namespaces || true
+        echo "=== Gateway Status ==="
+        kubectl get gateways --all-namespaces || true
+        echo "=== Events ==="
+        kubectl get events --all-namespaces --sort-by='.lastTimestamp' || true
+        echo "=== Envoy Gateway Logs ==="
+        kubectl logs -n envoy-gateway-system -l control-plane=envoy-gateway --tail=50 || true
+        echo "=== Primary Provider Logs ==="
+        kubectl logs -l app=llm-primary --tail=50 || true
+        echo "=== Fallback Provider Logs ==="
+        kubectl logs -l app=llm-fallback --tail=50 || true
+        echo "=== Gateway Proxy Logs ==="
+        kubectl logs -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=envoy-ai-gateway --tail=50 || true
+
+    - name: Cleanup
+      if: always()
+      run: |
+        echo "🧹 Cleanup..."
+        task cleanup || true
+        cd ../../
+        task cleanup || true
+        # Kill any remaining port forwarding processes
+        pkill -f "kubectl port-forward" || true
+        # Clean up kind cluster
+        kind delete clusters --all || true
