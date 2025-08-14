@@ -43,11 +43,8 @@ sleep 3
 
 echo -e "${YELLOW}⚙️  Configuring primary backend to fail (90% server errors)...${NC}"
 kubectl set env deployment/$PRIMARY_BACKEND -n $NAMESPACE \
-  LLM_D_MODE=failure \
   LLM_D_FAILURE_INJECTION_RATE=90 \
-  LLM_D_FAILURE_TYPE_1=server_error \
-  LLM_D_FAILURE_TYPE_2="" \
-  LLM_D_FAILURE_TYPE_3=""
+  LLM_D_FAILURE_TYPE=server_error
 kubectl rollout status deployment/$PRIMARY_BACKEND -n $NAMESPACE
 
 echo ""
@@ -257,9 +254,7 @@ if [[ "$RECOVER" == "y" || "$RECOVER" == "Y" ]]; then
   kubectl set env deployment/$PRIMARY_BACKEND -n $NAMESPACE \
     LLM_D_MODE=random \
     LLM_D_FAILURE_INJECTION_RATE=0 \
-    LLM_D_FAILURE_TYPE_1="" \
-    LLM_D_FAILURE_TYPE_2="" \
-    LLM_D_FAILURE_TYPE_3=""
+    LLM_D_FAILURE_TYPE=""
   kubectl rollout status deployment/$PRIMARY_BACKEND -n $NAMESPACE
   echo -e "${GREEN}✅ Primary backend restored to healthy state${NC}"
 else

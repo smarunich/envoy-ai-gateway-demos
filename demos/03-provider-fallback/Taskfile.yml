@@ -28,6 +28,7 @@ tasks:
       - task: wait-ready
       - echo "Provider fallback setup complete!"
       - echo "Run 'task test' to test the fallback behavior"
+      - task: port-forward
     generates:
       - .task/setup.done
     status:
@@ -364,11 +365,8 @@ tasks:
       - |
         echo "Configuring primary backend to return rate limit errors..."
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
-          LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=80 \
-          LLM_D_FAILURE_TYPE_1=rate_limit \
-          LLM_D_FAILURE_TYPE_2="" \
-          LLM_D_FAILURE_TYPE_3=""
+          LLM_D_FAILURE_TYPE=rate_limit
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 80% rate limit errors (HTTP 429)"
 
@@ -378,11 +376,8 @@ tasks:
       - |
         echo "Configuring primary backend to return auth errors..."
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
-          LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=70 \
-          LLM_D_FAILURE_TYPE_1=invalid_api_key \
-          LLM_D_FAILURE_TYPE_2="" \
-          LLM_D_FAILURE_TYPE_3=""
+          LLM_D_FAILURE_TYPE=invalid_api_key
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 70% auth errors (HTTP 401)"
 
@@ -392,11 +387,8 @@ tasks:
       - |
         echo "Configuring primary backend to return context length errors..."
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
-          LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=60 \
-          LLM_D_FAILURE_TYPE_1=context_length \
-          LLM_D_FAILURE_TYPE_2="" \
-          LLM_D_FAILURE_TYPE_3=""
+          LLM_D_FAILURE_TYPE=context_length
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 60% context length errors (HTTP 400)"
 
@@ -406,11 +398,8 @@ tasks:
       - |
         echo "Configuring primary backend to return server errors..."
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
-          LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=90 \
-          LLM_D_FAILURE_TYPE_1=server_error \
-          LLM_D_FAILURE_TYPE_2="" \
-          LLM_D_FAILURE_TYPE_3=""
+          LLM_D_FAILURE_TYPE=server_error
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 90% server errors (HTTP 503)"
 
@@ -420,11 +409,8 @@ tasks:
       - |
         echo "Configuring primary backend to return model not found errors..."
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
-          LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=50 \
-          LLM_D_FAILURE_TYPE_1=model_not_found \
-          LLM_D_FAILURE_TYPE_2="" \
-          LLM_D_FAILURE_TYPE_3=""
+          LLM_D_FAILURE_TYPE=model_not_found
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 50% model not found errors (HTTP 404)"
 
@@ -434,11 +420,8 @@ tasks:
       - |
         echo "Configuring primary backend with mixed failures..."
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
-          LLM_D_MODE=failure \
           LLM_D_FAILURE_INJECTION_RATE=75 \
-          LLM_D_FAILURE_TYPE_1=rate_limit \
-          LLM_D_FAILURE_TYPE_2=server_error \
-          LLM_D_FAILURE_TYPE_3=context_length
+
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend now returning 75% mixed failures (rate_limit, server_error, context_length)"
 
@@ -455,9 +438,7 @@ tasks:
         kubectl set env deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}} \
           LLM_D_MODE=random \
           LLM_D_FAILURE_INJECTION_RATE=0 \
-          LLM_D_FAILURE_TYPE_1="" \
-          LLM_D_FAILURE_TYPE_2="" \
-          LLM_D_FAILURE_TYPE_3=""
+          LLM_D_FAILURE_TYPE=""
         kubectl rollout status deployment/{{.PRIMARY_BACKEND}} -n {{.NAMESPACE}}
         echo "Primary backend restored to healthy random mode"
 
