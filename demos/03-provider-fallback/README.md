@@ -85,6 +85,7 @@ task show-retry-evidence  # Detailed retry evidence and analysis
 
 ## Architecture
 
+### System Overview
 ```
 ┌─────────────┐     ┌─────────────────┐     ┌──────────────────────┐
 │   Client    │────▶│  Envoy AI       │────▶│  Primary Provider   │
@@ -98,6 +99,60 @@ task show-retry-evidence  # Detailed retry evidence and analysis
                     │  Selection      │     │  (llm-fallback)     │
                     └─────────────────┘     └──────────────────────┘
 ```
+
+### Primary Failure Use Case - Detailed Flow
+
+```mermaid
+graph TD
+    A[Client Request] --> B[Envoy AI Gateway]
+    B --> C{Route to Primary}
+    C --> D[llm-primary:8000]
+    D --> E{Response OK?}
+    
+    E -->|❌ 503/Timeout/Error| F[Mark Primary Failed]
+    F --> G[Apply Retry Policy]
+    G --> H{Retry Count < 5?}
+    
+    H -->|Yes| I[Exponential Backoff<br/>100ms base, 10s max]
+    I --> J[Route to Fallback]
+    J --> K[llm-fallback:8001]
+    K --> L{Fallback Response OK?}
+    
+    L -->|✅ 200 OK| M[Return Success to Client]
+    L -->|❌ Error| N[Increment Retry Count]
+    N --> H
+    
+    H -->|No| O[Return Final Error]
+    E -->|✅ 200 OK| M
+    
+    style D fill:#ffcccc
+    style K fill:#ccffcc
+    style F fill:#ff9999
+    style M fill:#99ff99
+    style O fill:#ffaaaa
+```
+
+### Component Details
+
+**Primary Provider (Unreliable)**
+- Service: `llm-primary.default.svc.cluster.local:8000`
+- Model: `gpt-4`
+- Mode: `random` (variable responses)
+- Latency: 500ms ± 100ms first token
+- Failure injection: Configurable
+
+**Fallback Provider (Stable)**
+- Service: `llm-fallback.default.svc.cluster.local:8001`
+- Model: `gpt-4`
+- Mode: `echo` (reliable responses)
+- Latency: 100ms first token (fast)
+- Failure injection: Disabled
+
+**Retry Policy Configuration**
+- Max retries: 5 attempts
+- Backoff: Exponential (100ms → 10s)
+- Triggers: 503 errors, connect-failure
+- Per-try timeout: 30 seconds
 
 ## Configuration Details
 
