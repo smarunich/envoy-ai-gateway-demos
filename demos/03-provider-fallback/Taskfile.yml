@@ -479,53 +479,6 @@ tasks:
         ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
         kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=20 | jq -c .
 
-  show-retry-evidence:
-    desc: "Show evidence of retry behavior and timeout differences"
-    cmds:
-      - |
-        echo "=== RETRY POLICY STATUS ==="
-        kubectl get backendtrafficpolicy retry-policy -n {{.NAMESPACE}} -o yaml 2>/dev/null || echo "❌ Retry policy not found"
-        
-        echo -e "\n=== GATEWAY RETRY METRICS ==="
-        ENVOY_POD=$(kubectl get pods -n envoy-gateway-system --selector=gateway.envoyproxy.io/owning-gateway-name={{.GATEWAY_NAME}} -o jsonpath='{.items[0].metadata.name}')
-        
-        # Port forward to admin interface for detailed metrics
-        kubectl port-forward -n envoy-gateway-system $ENVOY_POD 19001:19000 &
-        PF_PID=$!
-        sleep 3
-        
-        echo "📊 Upstream Request Metrics:"
-        STATS=$(curl -s localhost:19001/stats)
-        
-        echo "--- Primary Backend Stats ---"
-        echo "$STATS" | grep -E "cluster\.backend/default/{{.PRIMARY_BACKEND}}.*\.(upstream_rq_total|upstream_rq_5xx|upstream_rq_timeout|upstream_rq_retry|upstream_rq_retry_success|upstream_cx_connect_fail):" | head -10
-        
-        echo -e "\n--- Fallback Backend Stats ---"
-        echo "$STATS" | grep -E "cluster\.backend/default/{{.FALLBACK_BACKEND}}.*\.(upstream_rq_total|upstream_rq_2xx|upstream_rq_timeout):" | head -10
-        
-        echo -e "\n--- Retry-Specific Metrics ---"
-        echo "$STATS" | grep -E "retry\.(upstream_rq_retry|upstream_rq_retry_success|upstream_rq_retry_overflow):" || echo "No retry metrics found"
-        
-        echo -e "\n--- Circuit Breaker Status ---"
-        echo "$STATS" | grep -E "circuit_breakers\..*\.(rq_open|cx_open):" | head -5
-        
-        echo -e "\n=== RECENT GATEWAY LOGS (showing retry attempts) ==="
-        kubectl logs -n envoy-gateway-system $ENVOY_POD --tail=30 | grep -E "(retry|upstream_rq|timeout|circuit)" | tail -10 || echo "No retry-related logs in recent entries"
-        
-        kill $PF_PID 2>/dev/null || true
-        
-        echo -e "\n=== TIMEOUT COMPARISON GUIDE ==="
-        echo "🕐 EXPECTED TIMING PATTERNS:"
-        echo "   • No Retry Policy: ~1-5 seconds (fast failure)"
-        echo "   • With Retry Policy: ~30-150 seconds (depends on failure type and retry success)"
-        echo "   • Successful Fallback: Should complete within retry timeout"
-        echo ""
-        echo "🔍 EVIDENCE TO LOOK FOR:"
-        echo "   1. upstream_rq_retry > 0 (retry attempts made)"
-        echo "   2. Different response times in test phases"
-        echo "   3. Primary backend errors followed by fallback success"
-        echo "   4. Circuit breaker activation after multiple failures"
-
   metrics:
     desc: "Show fallback and retry metrics"
     cmds:
